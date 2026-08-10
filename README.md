@@ -1,8 +1,11 @@
 # KernelArchive
 
-A searchable archive of Windows kernel symbols, type layouts and byte patterns,
-extracted from Microsoft's published PDBs and the matching system binaries, and
-pinned to an exact Windows build.
+A searchable index of Windows kernel symbols, type layouts and byte patterns,
+derived by analysing Microsoft's public debug symbols and the corresponding system
+binaries on your own machine, and pinned to an exact Windows build.
+
+It does not host or redistribute Windows binaries or PDB files. It records facts
+about them: names, offsets, sizes and addresses.
 
 **Live at [kernelarchive.com](https://kernelarchive.com)**. Free, no account needed.
 
@@ -168,9 +171,24 @@ Entirely optional. The archive stays up either way.
 
 ## Licence
 
-Not yet chosen. Until a licence file lands in this repository, the code is published
-for reference and no rights are granted.
+Two separate things live here, and only one of them is mine to license.
+
+**The source code in this repository.** No licence has been chosen yet. Until a
+licence file lands here, the code is published for reference and no rights are
+granted. That will change; the intent is to license it properly.
+
+**The archive data it generates.** Not covered by any licence granted here, whatever
+the code ends up under. It contains information derived from Microsoft Windows
+binaries and Microsoft public symbol files, and Microsoft retains all applicable
+rights in those materials.
+
+This project does not redistribute Windows binaries or PDB files. The collector
+downloads them from Microsoft to your machine, and the indexer reads them there. What
+gets stored is derived information: symbol names, field offsets, structure sizes and
+addresses. If you build an archive and then share it, that is your decision to make
+and your responsibility to check.
 
 Windows and Microsoft are trademarks of Microsoft Corporation. This project is not
-affiliated with or endorsed by Microsoft. Indexed symbol data originates from
-Microsoft's public symbol server and remains subject to Microsoft's terms.
+affiliated with, sponsored by, or endorsed by Microsoft.
+
+None of the above is legal advice.

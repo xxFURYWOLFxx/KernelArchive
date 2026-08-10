@@ -23,6 +23,13 @@ export async function create_app() {
     genReqId: () => crypto.randomUUID(),
     bodyLimit: env.JSON_BODY_MAX_BYTES,
     trustProxy: trust_proxy.length > 0 ? trust_proxy : false,
+    // Fastify rejects route parameters over 100 characters by default, and archive
+    // identifiers routinely exceed that: they carry the module, the demangled
+    // signature, two content hashes and an RVA, so a decorated C++ function can
+    // reach 130 or more. Those are legitimate ids the API itself generated, and a
+    // request for one was failing with FST_ERR_MAX_PARAM_LENGTH before reaching a
+    // handler. The ceiling stays low enough to keep absurd paths out.
+    maxParamLength: 512,
   });
 
   server.addContentTypeParser("application/octet-stream", { parseAs: "buffer", bodyLimit: env.UPLOAD_MAX_BYTES }, (_request, body, done) => {

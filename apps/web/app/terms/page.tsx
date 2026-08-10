@@ -13,9 +13,13 @@ export default function TermsPage() {
       <LegalSection heading="1. What this service is">
         <p>
           {site.name} is a free, self-hosted index of Windows kernel symbols, type layouts and byte
-          patterns extracted from Microsoft&apos;s publicly published debug symbols (PDBs) and from the
-          corresponding system binaries. It exists as a research and interoperability reference for
-          driver developers, security researchers and reverse engineers.
+          patterns, derived by analysing Microsoft&apos;s publicly published debug symbols (PDBs) and
+          the corresponding system binaries. It exists as a research and interoperability reference
+          for driver developers, security researchers and reverse engineers.
+        </p>
+        <p>
+          It does not host or redistribute Windows binaries or PDB files. What it stores is derived
+          information about them: symbol names, field offsets, structure sizes and addresses.
         </p>
         <p>
           It is operated by {site.author} as a personal project and provided at no cost. There is no
@@ -26,10 +30,13 @@ export default function TermsPage() {
       <LegalSection heading="2. No affiliation with Microsoft">
         <p>
           {site.name} is not affiliated with, sponsored by, or endorsed by Microsoft Corporation.
-          Windows, Microsoft and related names are trademarks of Microsoft Corporation. Symbol data
-          indexed here originates from Microsoft&apos;s public symbol server and remains subject to
-          Microsoft&apos;s own terms. You are responsible for ensuring your use of that data complies
-          with any licence that applies to it in your jurisdiction and situation.
+          Windows, Microsoft and related names are trademarks of Microsoft Corporation.
+        </p>
+        <p>
+          The indexed data is derived from Microsoft Windows binaries and Microsoft public symbol
+          files, and Microsoft retains all applicable rights in those materials. Nothing granted by
+          this service covers them. You are responsible for ensuring your use of that data complies
+          with any licence or terms that apply to it in your jurisdiction and situation.
         </p>
       </LegalSection>
 
@@ -92,8 +99,12 @@ export default function TermsPage() {
 
       <LegalSection heading="8. Source code">
         <p>
-          The software behind {site.name} is published as open source. The licence in the repository
-          governs the code; it does not grant any rights over the indexed symbol data, which is
+          The source code behind {site.name} is published at{" "}
+          <a className="text-cyan-200 underline decoration-cyan-300/40 underline-offset-2 hover:decoration-cyan-300" href={site.source_url} rel="noreferrer noopener" target="_blank">
+            GitHub
+          </a>
+          . Whatever licence the repository carries governs that code and nothing else. It grants no
+          rights over the indexed data, which is derived from Microsoft&apos;s materials and remains
           Microsoft&apos;s.
         </p>
       </LegalSection>
