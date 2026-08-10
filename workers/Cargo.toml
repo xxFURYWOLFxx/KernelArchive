@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "binary-analyzer-rust",
+    "pattern-worker-rust",
+    "pdb-parser-rust",
+]
+resolver = "2"
+

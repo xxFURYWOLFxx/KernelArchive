@@ -1,0 +1,12 @@
+import { LoadingState } from "@/components/loading-state";
+
+export default function Loading() {
+  return (
+    <>
+      <div className="ka-route-progress" role="progressbar"><span /></div>
+      <div className="flex min-h-[55vh] items-center justify-center">
+        <LoadingState className="w-full max-w-2xl" detail="Preparing the requested KernelArchive view" label="Loading page" rows={6} />
+      </div>
+    </>
+  );
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@kernelarchive/config",
+  "version": "0.1.0",
+  "private": true,
+  "exports": {
+    "./tsconfig/base": "../../tsconfig.base.json"
+  },
+  "scripts": {
+    "build": "node -e \"console.log('config build complete')\"",
+    "lint": "node -e \"console.log('config lint complete')\"",
+    "typecheck": "node -e \"console.log('config typecheck complete')\""
+  }
+}
+

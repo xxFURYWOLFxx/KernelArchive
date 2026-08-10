@@ -1,0 +1,284 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum Architecture {
+  X64
+  ARM64
+  X86
+}
+
+enum ParseStatus {
+  UPLOADED
+  PARSING
+  PARSED
+  FAILED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum PatternStatus {
+  EXCELLENT
+  GOOD
+  RISKY
+  REJECTED
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  username      String     @unique
+  password_hash String
+  role          UserRole   @default(USER)
+  created_at    DateTime   @default(now())
+  updated_at    DateTime   @updatedAt
+  api_keys      ApiKey[]
+  audit_logs    AuditLog[]
+
+  @@map("users")
+}
+
+model ApiKey {
+  id              String    @id @default(cuid())
+  user_id         String
+  name            String
+  key_hash        String    @unique
+  scopes          Json
+  rate_limit_tier String
+  created_at      DateTime  @default(now())
+  expires_at      DateTime?
+  revoked_at      DateTime?
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("api_keys")
+}
+
+model WindowsBuild {
+  id              String   @id @default(cuid())
+  product_name    String
+  version         String
+  build_number    String
+  revision        String
+  architecture    Architecture
+  release_channel String
+  published       Boolean  @default(false)
+  created_at      DateTime @default(now())
+  modules         Module[]
+
+  @@unique([build_number, revision, architecture])
+  @@map("windows_builds")
+}
+
+model Module {
+  id             String       @id @default(cuid())
+  build_id       String
+  name           String
+  original_path  String
+  image_base     String
+  image_size     Int
+  timestamp      String
+  checksum       String
+  sha256         String       @unique
+  pdb_name       String
+  pdb_guid       String
+  pdb_age        Int
+  created_at     DateTime     @default(now())
+  build          WindowsBuild @relation(fields: [build_id], references: [id], onDelete: Cascade)
+  binary_files   BinaryFile[]
+  symbols        Symbol[]
+  functions      KernelFunction[]
+  types          KernelType[]
+  patterns       Pattern[]
+
+  @@index([build_id, name])
+  @@index([pdb_guid, pdb_age])
+  @@map("modules")
+}
+
+model PdbFile {
+  id           String      @id @default(cuid())
+  filename     String
+  guid         String
+  age          Int
+  sha256       String      @unique
+  source       String
+  storage_path String
+  parse_status ParseStatus @default(UPLOADED)
+  parse_error  String?
+  parsed_at    DateTime?
+  created_at   DateTime    @default(now())
+
+  @@unique([guid, age])
+  @@map("pdb_files")
+}
+
+model BinaryFile {
+  id              String      @id @default(cuid())
+  filename        String
+  sha256          String      @unique
+  storage_path    String
+  module_id       String?
+  analysis_status ParseStatus @default(UPLOADED)
+  analyzed_at     DateTime?
+  created_at      DateTime    @default(now())
+  module          Module?     @relation(fields: [module_id], references: [id])
+
+  @@index([module_id])
+  @@map("binary_files")
+}
+
+model Symbol {
+  id               String   @id @default(cuid())
+  module_id        String
+  name             String
+  undecorated_name String?
+  kind             String
+  rva              String?
+  size             Int?
+  section_name     String?
+  is_exported      Boolean  @default(false)
+  is_public        Boolean  @default(false)
+  source           String
+  created_at       DateTime @default(now())
+  module           Module   @relation(fields: [module_id], references: [id], onDelete: Cascade)
+  functions        KernelFunction[]
+
+  @@index([module_id, name])
+  @@index([kind])
+  @@map("symbols")
+}
+
+model KernelFunction {
+  id                 String    @id @default(cuid())
+  symbol_id          String
+  module_id          String
+  name               String
+  return_type        String?
+  calling_convention String?
+  parameters_json    Json
+  rva                String
+  size               Int
+  confidence         Float
+  has_pattern        Boolean   @default(false)
+  created_at         DateTime  @default(now())
+  symbol             Symbol    @relation(fields: [symbol_id], references: [id], onDelete: Cascade)
+  module             Module    @relation(fields: [module_id], references: [id], onDelete: Cascade)
+  patterns           Pattern[]
+
+  @@index([module_id, name])
+  @@map("functions")
+}
+
+model KernelType {
+  id              String      @id @default(cuid())
+  module_id       String
+  name            String
+  kind            String
+  size            Int
+  alignment       Int
+  reconstructed_c String
+  hash            String
+  created_at      DateTime    @default(now())
+  module          Module      @relation(fields: [module_id], references: [id], onDelete: Cascade)
+  fields          TypeField[]
+
+  @@index([module_id, name])
+  @@index([hash])
+  @@map("types")
+}
+
+model TypeField {
+  id              String     @id @default(cuid())
+  type_id         String
+  name            String
+  field_type_name String
+  offset_bits     Int
+  size_bits       Int
+  flags_json      Json
+  type            KernelType @relation(fields: [type_id], references: [id], onDelete: Cascade)
+
+  @@index([type_id, offset_bits])
+  @@map("type_fields")
+}
+
+model Pattern {
+  id                  String         @id @default(cuid())
+  function_id         String
+  module_id           String
+  binary_sha256       String
+  pattern             String
+  mask                String
+  format              String
+  length              Int
+  confidence          Float
+  collision_count     Int
+  tested_builds_json  Json
+  status              PatternStatus
+  created_at          DateTime       @default(now())
+  function            KernelFunction @relation(fields: [function_id], references: [id], onDelete: Cascade)
+  module              Module         @relation(fields: [module_id], references: [id], onDelete: Cascade)
+
+  @@index([function_id])
+  @@index([module_id])
+  @@map("patterns")
+}
+
+model Diff {
+  id            String   @id @default(cuid())
+  from_build_id String
+  to_build_id   String
+  entity_kind   String
+  entity_name   String
+  diff_json     Json
+  created_at    DateTime @default(now())
+
+  @@index([entity_kind, entity_name])
+  @@map("diffs")
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  type        String
+  status      JobStatus @default(QUEUED)
+  input_json  Json
+  output_json Json?
+  error       String?
+  created_at  DateTime  @default(now())
+  started_at  DateTime?
+  finished_at DateTime?
+
+  @@index([type, status])
+  @@map("jobs")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  user_id     String?
+  action      String
+  target_type String
+  target_id   String?
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+  user        User?    @relation(fields: [user_id], references: [id])
+
+  @@index([action, target_type])
+  @@map("audit_logs")
+}
+

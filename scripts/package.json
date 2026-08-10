@@ -1,0 +1,24 @@
+{
+  "name": "@kernelarchive/scripts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "index-system": "tsx index-local-system.ts",
+    "import-build": "tsx import-build.ts",
+    "lint": "eslint .",
+    "openapi:generate": "tsx generate-openapi.ts",
+    "seed": "tsx seed.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "warm-cache": "tsx warm-cache.ts"
+  },
+  "dependencies": {
+    "@kernelarchive/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  }
+}

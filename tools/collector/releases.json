@@ -1,0 +1,198 @@
+{
+  "schema_version": 1,
+  "architecture": "amd64",
+  "language": "en-us",
+  "edition": "PROFESSIONAL",
+  "releases": [
+    {
+      "id": "Win10-1507",
+      "product": "Windows 10",
+      "version": "1507",
+      "display_name": "Windows 10 1507",
+      "build_major": 10240,
+      "release_date": "2015-07-29",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1507", "win10-1507"]
+    },
+    {
+      "id": "Win10-1511",
+      "product": "Windows 10",
+      "version": "1511",
+      "display_name": "Windows 10 1511",
+      "build_major": 10586,
+      "release_date": "2015-11-10",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1511", "win10-1511"]
+    },
+    {
+      "id": "Win10-1607",
+      "product": "Windows 10",
+      "version": "1607",
+      "display_name": "Windows 10 1607",
+      "build_major": 14393,
+      "release_date": "2016-08-02",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1607", "win10-1607"]
+    },
+    {
+      "id": "Win10-1703",
+      "product": "Windows 10",
+      "version": "1703",
+      "display_name": "Windows 10 1703",
+      "build_major": 15063,
+      "release_date": "2017-04-05",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1703", "win10-1703"]
+    },
+    {
+      "id": "Win10-1709",
+      "product": "Windows 10",
+      "version": "1709",
+      "display_name": "Windows 10 1709",
+      "build_major": 16299,
+      "release_date": "2017-10-17",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1709", "win10-1709"]
+    },
+    {
+      "id": "Win10-1803",
+      "product": "Windows 10",
+      "version": "1803",
+      "display_name": "Windows 10 1803",
+      "build_major": 17134,
+      "release_date": "2018-04-30",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1803", "win10-1803"]
+    },
+    {
+      "id": "Win10-1809",
+      "product": "Windows 10",
+      "version": "1809",
+      "display_name": "Windows 10 1809",
+      "build_major": 17763,
+      "release_date": "2018-11-13",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1809", "win10-1809"]
+    },
+    {
+      "id": "Win10-1903",
+      "product": "Windows 10",
+      "version": "1903",
+      "display_name": "Windows 10 1903",
+      "build_major": 18362,
+      "release_date": "2019-05-21",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1903", "win10-1903"]
+    },
+    {
+      "id": "Win10-1909",
+      "product": "Windows 10",
+      "version": "1909",
+      "display_name": "Windows 10 1909",
+      "build_major": 18363,
+      "release_date": "2019-11-12",
+      "minimum_free_gib": 45,
+      "aliases": ["10-1909", "win10-1909"]
+    },
+    {
+      "id": "Win10-2004",
+      "product": "Windows 10",
+      "version": "2004",
+      "display_name": "Windows 10 2004",
+      "build_major": 19041,
+      "release_date": "2020-05-27",
+      "minimum_free_gib": 45,
+      "aliases": ["10-2004", "win10-2004"]
+    },
+    {
+      "id": "Win10-20H2",
+      "product": "Windows 10",
+      "version": "20H2",
+      "display_name": "Windows 10 20H2",
+      "build_major": 19042,
+      "release_date": "2020-10-20",
+      "minimum_free_gib": 45,
+      "aliases": ["10-20H2", "win10-20h2"]
+    },
+    {
+      "id": "Win10-21H1",
+      "product": "Windows 10",
+      "version": "21H1",
+      "display_name": "Windows 10 21H1",
+      "build_major": 19043,
+      "release_date": "2021-05-18",
+      "minimum_free_gib": 45,
+      "aliases": ["10-21H1", "win10-21h1"]
+    },
+    {
+      "id": "Win10-21H2",
+      "product": "Windows 10",
+      "version": "21H2",
+      "display_name": "Windows 10 21H2",
+      "build_major": 19044,
+      "release_date": "2021-11-16",
+      "minimum_free_gib": 45,
+      "aliases": ["10-21H2", "win10-21h2"]
+    },
+    {
+      "id": "Win10-22H2",
+      "product": "Windows 10",
+      "version": "22H2",
+      "display_name": "Windows 10 22H2",
+      "build_major": 19045,
+      "release_date": "2022-10-18",
+      "minimum_free_gib": 45,
+      "aliases": ["10-22H2", "win10-22h2"]
+    },
+    {
+      "id": "Win11-21H2",
+      "product": "Windows 11",
+      "version": "21H2",
+      "display_name": "Windows 11 21H2",
+      "build_major": 22000,
+      "release_date": "2021-10-04",
+      "minimum_free_gib": 45,
+      "aliases": ["11-21H2", "win11-21h2"]
+    },
+    {
+      "id": "Win11-22H2",
+      "product": "Windows 11",
+      "version": "22H2",
+      "display_name": "Windows 11 22H2",
+      "build_major": 22621,
+      "release_date": "2022-09-20",
+      "minimum_free_gib": 45,
+      "aliases": ["11-22H2", "win11-22h2"]
+    },
+    {
+      "id": "Win11-23H2",
+      "product": "Windows 11",
+      "version": "23H2",
+      "display_name": "Windows 11 23H2",
+      "build_major": 22631,
+      "release_date": "2023-10-31",
+      "minimum_free_gib": 45,
+      "aliases": ["11-23H2", "win11-23h2"]
+    },
+    {
+      "id": "Win11-24H2",
+      "product": "Windows 11",
+      "version": "24H2",
+      "display_name": "Windows 11 24H2",
+      "build_major": 26100,
+      "release_date": "2024-10-01",
+      "minimum_free_gib": 45,
+      "aliases": ["11-24H2", "win11-24h2"]
+    },
+    {
+      "id": "Win11-25H2",
+      "product": "Windows 11",
+      "version": "25H2",
+      "display_name": "Windows 11 25H2",
+      "build_major": 26200,
+      "release_date": "2025-09-30",
+      "minimum_free_gib": 45,
+      "aliases": ["11-25H2", "win11-25h2"]
+    }
+  ]
+}

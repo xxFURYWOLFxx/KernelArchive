@@ -1,0 +1,42 @@
+node_modules
+.next
+dist
+target
+.turbo
+.DS_Store
+*.log
+coverage
+*.tsbuildinfo
+
+# Environment files. The example is the only one that ships.
+.env*
+!.env.example
+
+# Indexed Windows binaries. Never publish: multi-GB, and redistributing Microsoft
+# system files is not ours to do.
+Archive/*
+
+# Local databases and caches. auth.sqlite holds the admin password hash and live
+# session tokens; archive.sqlite is the full multi-GB index. Neither belongs in git.
+local-cache/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.db
+
+# Editor and tooling scratch. These directories hold throwaway state and absolute
+# developer paths, and none of it belongs in the repository.
+.vscode/
+.idea/
+.agents/
+.codex/
+.codex-temp/
+.codex-runlogs/
+test-results/
+
+# Build intermediates. The pdb_dump .exe itself is left tracked deliberately:
+# it is the PDB extractor the API shells out to, and dropping it would break a
+# fresh clone. Remove it here only if you add a documented build step for it.
+*.obj
+out/
+tmp/

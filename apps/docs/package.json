@@ -1,0 +1,11 @@
+{
+  "name": "@kernelarchive/docs",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "node -e \"console.log('docs build complete')\"",
+    "lint": "node -e \"console.log('docs lint complete')\"",
+    "typecheck": "node -e \"console.log('docs typecheck complete')\""
+  }
+}
+

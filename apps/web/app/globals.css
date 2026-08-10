@@ -1,0 +1,252 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  background: #05070d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: #08080a;
+  color: #f4f4f5;
+  scrollbar-color: rgba(148, 163, 184, 0.55) rgba(8, 12, 22, 0.45);
+  scrollbar-width: thin;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 10px;
+}
+
+html::-webkit-scrollbar-track,
+body::-webkit-scrollbar-track {
+  background: rgba(8, 12, 22, 0.45);
+}
+
+html::-webkit-scrollbar-thumb,
+body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.5);
+}
+
+body {
+  margin: 0;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background: #080c16;
+  color: #e4e4e7;
+}
+
+.ka-select {
+  color-scheme: dark;
+  background-color: rgba(0, 0, 0, 0.42);
+}
+
+::selection {
+  background: rgba(34, 211, 238, 0.28);
+}
+
+@keyframes ka-drift {
+  0% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.02);
+  }
+  50% {
+    transform: translate3d(1%, 1.5%, 0) scale(1.05);
+  }
+  100% {
+    transform: translate3d(-1.5%, -1%, 0) scale(1.02);
+  }
+}
+
+@keyframes ka-sheen {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes ka-rise {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ka-bg {
+  position: relative;
+  isolation: isolate;
+  background-color: #05070d;
+  /* The artwork carries its own headline text and code, so it is damped hard here.
+     Left at full strength it competes with the interface copy sitting on top. */
+  background-image:
+    linear-gradient(180deg, rgba(5, 7, 13, 0.95) 0%, rgba(5, 7, 13, 0.91) 42%, rgba(5, 7, 13, 0.96) 100%),
+    url("/kernel-archive-bg.webp");
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
+}
+
+.ka-bg::before {
+  position: absolute;
+  inset: -5%;
+  z-index: -2;
+  content: "";
+  background:
+    radial-gradient(circle at 68% 28%, rgba(45, 212, 191, 0.16), transparent 30%),
+    radial-gradient(circle at 30% 72%, rgba(34, 211, 238, 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(5, 7, 13, 0.02), rgba(5, 7, 13, 0.86));
+  animation: ka-drift 18s ease-in-out infinite;
+}
+
+.ka-bg::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, transparent, black 18%, black 78%, transparent);
+  opacity: 0.14;
+}
+
+.ka-shell {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(5, 7, 13, 0.96), rgba(7, 10, 18, 0.98)),
+    url("/kernel-archive-bg.webp");
+  background-attachment: fixed;
+  background-position: center;
+  background-size: cover;
+}
+
+.ka-panel {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(8, 12, 22, 0.72);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.36);
+  backdrop-filter: blur(18px);
+}
+
+.ka-tile {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(135deg, rgba(10, 18, 30, 0.72), rgba(10, 36, 48, 0.48));
+  box-shadow: 0 18px 64px rgba(0, 0, 0, 0.26);
+  backdrop-filter: blur(16px);
+}
+
+.ka-tile::before {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(110deg, transparent 15%, rgba(255, 255, 255, 0.13) 42%, transparent 62%);
+  opacity: 0;
+  transform: translateX(-120%);
+}
+
+.ka-tile:hover::before {
+  animation: ka-sheen 900ms ease;
+  opacity: 1;
+}
+
+.ka-rise {
+  animation: ka-rise 160ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ka-rise,
+  .ka-bg::before,
+  .ka-tile:hover::before {
+    animation: none;
+  }
+}
+
+.ka-scroll {
+  scrollbar-color: rgba(148, 163, 184, 0.55) rgba(8, 12, 22, 0.45);
+  scrollbar-width: thin;
+}
+
+
+@keyframes ka-progress {
+  0% {
+    transform: translateX(-120%) scaleX(0.45);
+  }
+  55% {
+    transform: translateX(80%) scaleX(0.8);
+  }
+  100% {
+    transform: translateX(260%) scaleX(0.35);
+  }
+}
+
+.ka-route-progress,
+.ka-operation-progress {
+  z-index: 60;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+  background: rgba(8, 145, 178, 0.18);
+}
+
+.ka-route-progress {
+  position: fixed;
+  inset: 0 0 auto;
+}
+
+.ka-operation-progress {
+  position: absolute;
+  inset: -1px 0 auto;
+}
+
+.ka-route-progress span,
+.ka-operation-progress span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  background: #67e8f9;
+  box-shadow: 0 0 12px rgba(103, 232, 249, 0.7);
+  transform-origin: left center;
+  animation: ka-progress 1.05s ease-in-out infinite;
+}
+.ka-scroll::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.ka-scroll::-webkit-scrollbar-track {
+  background: rgba(8, 12, 22, 0.45);
+}
+
+.ka-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.5);
+}
