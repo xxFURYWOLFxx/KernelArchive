@@ -97,6 +97,48 @@ const pe_export_functions_version = "1";
 const exposed_function_counts_version = "2";
 const type_references_version = "1";
 
+// Kept as one string because a bulk type rewrite drops these and puts them back.
+// Maintaining archive_type_field_references a row at a time costs far more than the
+// type records themselves: every deleted type scatters deletes across a table keyed
+// by target_key, so re-extracting the whole archive is hours of random writes with
+// them attached and minutes without.
+const type_field_reference_triggers = `
+      CREATE TRIGGER IF NOT EXISTS archive_type_field_references_insert
+      AFTER INSERT ON archive_records
+      WHEN NEW.collection = 'types'
+      BEGIN
+        INSERT OR IGNORE INTO archive_type_field_references (target_key, source_row_id, field_index)
+        SELECT
+          kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')),
+          NEW.row_id,
+          CAST(field.key AS INTEGER)
+        FROM json_each(NEW.payload, '$.fields') AS field
+        WHERE kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')) <> '';
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS archive_type_field_references_delete
+      AFTER DELETE ON archive_records
+      WHEN OLD.collection = 'types'
+      BEGIN
+        DELETE FROM archive_type_field_references WHERE source_row_id = OLD.row_id;
+      END;
+
+      CREATE TRIGGER IF NOT EXISTS archive_type_field_references_update
+      AFTER UPDATE OF collection, payload ON archive_records
+      WHEN OLD.collection = 'types' OR NEW.collection = 'types'
+      BEGIN
+        DELETE FROM archive_type_field_references WHERE source_row_id = OLD.row_id;
+        INSERT OR IGNORE INTO archive_type_field_references (target_key, source_row_id, field_index)
+        SELECT
+          kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')),
+          NEW.row_id,
+          CAST(field.key AS INTEGER)
+        FROM json_each(NEW.payload, '$.fields') AS field
+        WHERE NEW.collection = 'types'
+          AND kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')) <> '';
+      END;
+`;
+
 function normalize_type_reference(value: unknown) {
   if (typeof value !== "string") { return ""; }
   return value
@@ -470,40 +512,7 @@ export class ArchiveStore {
         DELETE FROM archive_exposed_function_counts WHERE module_id = OLD.id;
       END;
 
-      CREATE TRIGGER IF NOT EXISTS archive_type_field_references_insert
-      AFTER INSERT ON archive_records
-      WHEN NEW.collection = 'types'
-      BEGIN
-        INSERT OR IGNORE INTO archive_type_field_references (target_key, source_row_id, field_index)
-        SELECT
-          kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')),
-          NEW.row_id,
-          CAST(field.key AS INTEGER)
-        FROM json_each(NEW.payload, '$.fields') AS field
-        WHERE kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')) <> '';
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS archive_type_field_references_delete
-      AFTER DELETE ON archive_records
-      WHEN OLD.collection = 'types'
-      BEGIN
-        DELETE FROM archive_type_field_references WHERE source_row_id = OLD.row_id;
-      END;
-
-      CREATE TRIGGER IF NOT EXISTS archive_type_field_references_update
-      AFTER UPDATE OF collection, payload ON archive_records
-      WHEN OLD.collection = 'types' OR NEW.collection = 'types'
-      BEGIN
-        DELETE FROM archive_type_field_references WHERE source_row_id = OLD.row_id;
-        INSERT OR IGNORE INTO archive_type_field_references (target_key, source_row_id, field_index)
-        SELECT
-          kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')),
-          NEW.row_id,
-          CAST(field.key AS INTEGER)
-        FROM json_each(NEW.payload, '$.fields') AS field
-        WHERE NEW.collection = 'types'
-          AND kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')) <> '';
-      END;
+      ${type_field_reference_triggers}
 
       CREATE TRIGGER IF NOT EXISTS archive_type_function_references_insert
       AFTER INSERT ON archive_records
@@ -1427,6 +1436,67 @@ export class ArchiveStore {
     return Number(row.count);
   }
 
+  // Takes the field-reference index out of the write path for a bulk type rewrite,
+  // and empties it so the delete trigger has nothing to chase. Everything that reads
+  // "used by" returns nothing until restore_type_field_references puts it back, so
+  // only call this with the API stopped.
+  defer_type_field_references() {
+    this.database.exec(`
+      DROP TRIGGER IF EXISTS archive_type_field_references_insert;
+      DROP TRIGGER IF EXISTS archive_type_field_references_delete;
+      DROP TRIGGER IF EXISTS archive_type_field_references_update;
+      DELETE FROM archive_type_field_references;
+    `);
+    // Clearing the version gate is the safety net. Opening this store recreates the
+    // triggers from the schema either way, so a caller that dies here would leave an
+    // empty index that looks healthy and silently answers "used by" with nothing.
+    // Without the gate the next process to open the archive rebuilds it instead.
+    this.database.prepare("DELETE FROM archive_meta WHERE key = 'type_references_version'").run();
+  }
+
+  // Rebuilds the field-reference index in one pass and puts the triggers back. One
+  // sorted bulk insert is a fraction of the cost of the same rows arriving one type
+  // at a time.
+  restore_type_field_references() {
+    const started_at = Date.now();
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      this.database.prepare(`
+        INSERT OR IGNORE INTO archive_type_field_references (target_key, source_row_id, field_index)
+        SELECT
+          kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')),
+          record.row_id,
+          CAST(field.key AS INTEGER)
+        FROM archive_records AS record INDEXED BY archive_records_collection_parent
+        JOIN json_each(record.payload, '$.fields') AS field
+        WHERE record.collection = 'types'
+          AND kernelarchive_type_reference(json_extract(field.value, '$.field_type_name')) <> ''
+      `).run();
+      this.database.prepare("INSERT OR REPLACE INTO archive_meta (key, value) VALUES ('type_references_version', ?)").run(type_references_version);
+      this.database.exec("COMMIT");
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+    this.database.exec(type_field_reference_triggers);
+    const row = this.database.prepare("SELECT COUNT(*) AS count FROM archive_type_field_references").get() as unknown as CountRow | undefined;
+    return { rows: Number(row?.count ?? 0), duration_ms: Date.now() - started_at };
+  }
+
+  // The modules a type re-extraction has to visit. Most of the archive has no type
+  // records at all: a public PDB with only exports still gets a module row, so this
+  // is a small fraction of the module table and worth asking the index for rather
+  // than walking every module.
+  type_record_owner_ids() {
+    const rows = this.database.prepare(`
+      SELECT DISTINCT parent_id AS id
+      FROM archive_records INDEXED BY archive_records_collection_parent
+      WHERE collection = 'types' AND parent_id IS NOT NULL
+      ORDER BY parent_id
+    `).all() as unknown as IdRow[];
+    return rows.map((row) => row.id);
+  }
+
   count(collection: ArchiveCollection, parent_id?: string) {
     const row = parent_id === undefined
       ? this.database.prepare("SELECT records AS count FROM archive_collection_counts WHERE collection = ?").get(collection)
@@ -1622,6 +1692,44 @@ export class ArchiveStore {
 
   replace_module(module_id: string, changes: ArchiveChanges) {
     return this.write_changes(changes, true, module_id);
+  }
+
+  // Swaps out one module's type records and nothing else. replace_module cannot do
+  // this: it also drops the module's functions and patterns, and a re-extraction of
+  // types alone has nothing to put back in their place. Delete and insert share one
+  // transaction because module_symbol_parent_ids treats a module with no type rows
+  // as an alias and serves a sha256-identical sibling's types instead, so a module
+  // caught mid-write would show another module's definitions rather than none.
+  replace_module_types(module_id: string, types: ArchiveRecord[], options: { rollback?: boolean } = {}) {
+    const statement = this.database.prepare(`
+      INSERT INTO archive_records (collection, id, parent_id, name, payload, updated_at)
+      VALUES ('types', ?, ?, ?, ?, ?)
+      ON CONFLICT (collection, id) DO UPDATE SET
+        parent_id = excluded.parent_id,
+        name = excluded.name,
+        payload = excluded.payload,
+        updated_at = excluded.updated_at
+    `);
+    const now = Date.now();
+    this.database.exec("BEGIN IMMEDIATE");
+    try {
+      const removed = this.database.prepare("DELETE FROM archive_records WHERE collection = 'types' AND parent_id = ?").run(module_id);
+      let inserted = 0;
+      for (const record of types) {
+        if (!record?.id) { continue; }
+        const metadata = record_metadata("types", record);
+        statement.run(record.id, metadata.parent_id, metadata.name, JSON.stringify(record), now);
+        inserted += 1;
+      }
+      // Four caches in ingestion-cache.ts key on this counter and one of them has no
+      // expiry, so without the bump a running API serves the old definitions forever.
+      this.database.prepare("UPDATE archive_meta SET value = CAST(value AS INTEGER) + 1 WHERE key = 'revision'").run();
+      this.database.exec(options.rollback ? "ROLLBACK" : "COMMIT");
+      return { removed: Number(removed.changes), inserted };
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
   }
 
   private write_changes(changes: ArchiveChanges, increment_revision: boolean, replace_module_id?: string) {
