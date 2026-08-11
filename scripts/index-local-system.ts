@@ -35,6 +35,10 @@ interface ExtractedPdbType {
     field_type_name: string;
     offset_bits: number;
     size_bits: number;
+    // Bitfields only. offset_bits is then the absolute bit offset, so the storage
+    // unit is offset_bits minus this.
+    bit_position?: number;
+    storage_bits?: number;
   }>;
 }
 
@@ -505,15 +509,27 @@ function extract_pdb_types(module: KernelModule): KernelType[] {
       alignment: type.alignment,
       reconstructed_c: type.reconstructed_c,
       hash: createHash("sha256").update(type.reconstructed_c).digest("hex").slice(0, 24),
-      fields: type.fields.map((field, index) => ({
-        id: `field_${id_part(type.name)}_${id_part(field.name)}_${index}`,
-        type_id,
-        name: field.name,
-        field_type_name: field.field_type_name,
-        offset_bits: field.offset_bits,
-        size_bits: field.size_bits,
-        flags_json: { source: "dia", offset_hex: hex(field.offset_bits / 8) },
-      })),
+      fields: type.fields.map((field, index) => {
+        const bit_position = field.bit_position;
+        const unit_offset_bits = bit_position === undefined ? field.offset_bits : field.offset_bits - bit_position;
+        return {
+          id: `field_${id_part(type.name)}_${id_part(field.name)}_${index}`,
+          type_id,
+          name: field.name,
+          field_type_name: field.field_type_name,
+          offset_bits: field.offset_bits,
+          size_bits: field.size_bits,
+          flags_json: {
+            source: "dia",
+            offset_hex: hex(unit_offset_bits / 8),
+            ...(bit_position === undefined ? {} : {
+              bit_position,
+              bit_width: field.size_bits,
+              storage_bits: field.storage_bits ?? 0,
+            }),
+          },
+        };
+      }),
       created_at,
     };
   });

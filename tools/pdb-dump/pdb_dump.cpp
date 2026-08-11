@@ -7,9 +7,12 @@
 #include <cwctype>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <vector>
+
+struct type_t;
 
 struct field_t {
     std::wstring name;
@@ -18,6 +21,18 @@ struct field_t {
     bool has_value = false;
     uint64_t offset_bits = 0;
     uint64_t size_bits = 0;
+    // A bitfield shares a storage unit with its neighbours. DIA reports the unit's
+    // byte offset through get_offset and the member's place inside it through
+    // get_bitPosition, so ignoring these collapses a whole group onto one offset and
+    // throws away the declared widths.
+    bool is_bitfield = false;
+    uint32_t bit_position = 0;
+    uint64_t storage_bits = 0;
+    // Order as DIA enumerates the members. Members that share an offset can only be
+    // told apart by this; sorting them by name scrambles bitfield groups.
+    uint32_t order = 0;
+    // An anonymous struct or union declared in place of a named type.
+    std::shared_ptr<type_t> nested;
 };
 
 struct type_t {
@@ -189,9 +204,171 @@ std::wstring render_field(const field_t& field) {
         type = type.substr(0, array_pos);
     }
     if (type.empty() || type.find(L'<') != std::wstring::npos) {
+        // No usable type name, so stand in a byte blob of the member's real size.
+        // Emitting a bare uint8_t here shifts every member that follows it.
+        const uint64_t bytes = field.size_bits / 8;
         type = L"uint8_t";
+        suffix = bytes > 1 ? L"[" + std::to_wstring(bytes) + L"]" : L"";
     }
     return type + L" " + c_identifier(field.name) + suffix;
+}
+
+// Where the member's storage begins, which for a bitfield is the unit it packs into
+// rather than the bit it starts on.
+uint64_t unit_start(const field_t& field) {
+    return field.is_bitfield ? field.offset_bits - field.bit_position : field.offset_bits;
+}
+
+// MSVC folds anonymous structs and unions into the parent's member list, so nesting
+// survives in the PDB only as members whose storage overlaps. A node is one member,
+// or one run of bitfields packed into the same unit, and the ranges are what the
+// renderer groups back into unions.
+struct layout_node_t {
+    uint64_t start = 0;
+    uint64_t end = 0;
+    bool bitfield_run = false;
+    std::vector<const field_t*> members;
+};
+
+uint64_t run_covered_bits(const layout_node_t& node) {
+    uint64_t covered = 0;
+    for (const auto* member : node.members) {
+        covered = std::max(covered, static_cast<uint64_t>(member->bit_position) + member->size_bits);
+    }
+    return covered;
+}
+
+std::vector<layout_node_t> build_layout(const std::vector<field_t>& fields) {
+    std::vector<layout_node_t> nodes;
+    for (const auto& field : fields) {
+        const uint64_t start = unit_start(field);
+        if (!field.is_bitfield) {
+            layout_node_t node;
+            node.start = start;
+            node.end = start + field.size_bits;
+            node.members.push_back(&field);
+            nodes.push_back(node);
+            continue;
+        }
+        const uint64_t width = std::max<uint64_t>(field.storage_bits, field.bit_position + field.size_bits);
+        layout_node_t* run = nodes.empty() ? nullptr : &nodes.back();
+        // Two bitfield groups can share a unit when a union holds both. Their bits
+        // overlap, which is what separates them here.
+        const bool extends = run && run->bitfield_run && run->start == start && run->end == start + width
+            && field.bit_position >= run_covered_bits(*run);
+        if (extends) {
+            run->members.push_back(&field);
+            continue;
+        }
+        layout_node_t node;
+        node.start = start;
+        node.end = start + width;
+        node.bitfield_run = true;
+        node.members.push_back(&field);
+        nodes.push_back(node);
+    }
+    return nodes;
+}
+
+std::wstring indent_text(int depth) {
+    return std::wstring(static_cast<size_t>(depth) * 4, L' ');
+}
+
+std::wstring offset_comment(uint64_t absolute_bits) {
+    std::wstringstream out;
+    out << L" // 0x" << std::hex << (absolute_bits / 8) << std::dec;
+    return out.str();
+}
+
+void render_layout(std::wstringstream& out, const std::vector<layout_node_t>& nodes, size_t begin, size_t end, int depth, uint64_t base_bits);
+void render_union_body(std::wstringstream& out, const std::vector<layout_node_t>& nodes, size_t begin, size_t end, int depth, uint64_t base_bits);
+void render_layout_node(std::wstringstream& out, const layout_node_t& node, int depth, uint64_t base_bits);
+
+void render_bitfield(std::wstringstream& out, const field_t& field, int depth, uint64_t base_bits) {
+    std::wstring type = field.type;
+    if (type.empty() || type.find(L'<') != std::wstring::npos) { type = L"uint32_t"; }
+    out << indent_text(depth) << type << L" " << c_identifier(field.name) << L" : " << field.size_bits << L";";
+    out << L" // 0x" << std::hex << ((base_bits + unit_start(field)) / 8) << std::dec << L":" << field.bit_position << L"\n";
+}
+
+void render_nested(std::wstringstream& out, const field_t& field, int depth, uint64_t base_bits) {
+    const type_t& nested = *field.nested;
+    out << indent_text(depth) << nested.kind << L" {" << offset_comment(base_bits) << L"\n";
+    const std::vector<layout_node_t> inner = build_layout(nested.fields);
+    if (nested.kind == L"union") {
+        render_union_body(out, inner, 0, inner.size(), depth + 1, base_bits);
+    } else {
+        render_layout(out, inner, 0, inner.size(), depth + 1, base_bits);
+    }
+    out << indent_text(depth) << L"}";
+    if (!field.name.empty()) { out << L" " << c_identifier(field.name); }
+    out << L";\n";
+}
+
+void render_layout_node(std::wstringstream& out, const layout_node_t& node, int depth, uint64_t base_bits) {
+    if (node.bitfield_run) {
+        if (node.members.size() == 1) {
+            render_bitfield(out, *node.members[0], depth, base_bits);
+            return;
+        }
+        out << indent_text(depth) << L"struct {\n";
+        for (const auto* member : node.members) { render_bitfield(out, *member, depth + 1, base_bits); }
+        out << indent_text(depth) << L"};\n";
+        return;
+    }
+    const field_t& field = *node.members[0];
+    if (field.nested) {
+        render_nested(out, field, depth, base_bits + node.start);
+        return;
+    }
+    out << indent_text(depth) << render_field(field) << L";" << offset_comment(base_bits + field.offset_bits) << L"\n";
+}
+
+// Splits the members of one overlapping cluster into union arms. An arm is the
+// longest run of members that fit end to end, which is how a struct nested inside
+// the union comes back out.
+void render_union_body(std::wstringstream& out, const std::vector<layout_node_t>& nodes, size_t begin, size_t end, int depth, uint64_t base_bits) {
+    std::vector<bool> used(end - begin, false);
+    for (size_t index = begin; index < end; index += 1) {
+        if (used[index - begin]) { continue; }
+        std::vector<const layout_node_t*> arm;
+        arm.push_back(&nodes[index]);
+        used[index - begin] = true;
+        uint64_t arm_end = nodes[index].end;
+        for (size_t next = index + 1; next < end; next += 1) {
+            if (used[next - begin] || nodes[next].start < arm_end) { continue; }
+            arm.push_back(&nodes[next]);
+            used[next - begin] = true;
+            arm_end = nodes[next].end;
+        }
+        if (arm.size() == 1) {
+            render_layout_node(out, *arm[0], depth, base_bits);
+            continue;
+        }
+        out << indent_text(depth) << L"struct {\n";
+        for (const auto* node : arm) { render_layout_node(out, *node, depth + 1, base_bits); }
+        out << indent_text(depth) << L"};\n";
+    }
+}
+
+void render_layout(std::wstringstream& out, const std::vector<layout_node_t>& nodes, size_t begin, size_t end, int depth, uint64_t base_bits) {
+    size_t index = begin;
+    while (index < end) {
+        uint64_t cluster_end = nodes[index].end;
+        size_t next = index + 1;
+        while (next < end && nodes[next].start < cluster_end) {
+            cluster_end = std::max(cluster_end, nodes[next].end);
+            next += 1;
+        }
+        if (next - index == 1) {
+            render_layout_node(out, nodes[index], depth, base_bits);
+        } else {
+            out << indent_text(depth) << L"union {" << offset_comment(base_bits + nodes[index].start) << L"\n";
+            render_union_body(out, nodes, index, next, depth + 1, base_bits);
+            out << indent_text(depth) << L"};\n";
+        }
+        index = next;
+    }
 }
 
 std::wstring render_c(const type_t& type) {
@@ -215,9 +392,11 @@ std::wstring render_c(const type_t& type) {
         return out.str();
     }
     out << L"typedef " << (type.kind == L"union" ? L"union" : L"struct") << L" " << type_name << L" {\n";
-    for (const auto& field : type.fields) {
-        out << L"    " << render_field(field) << L";";
-        out << L" // 0x" << std::hex << (field.offset_bits / 8) << std::dec << L"\n";
+    const std::vector<layout_node_t> nodes = build_layout(type.fields);
+    if (type.kind == L"union") {
+        render_union_body(out, nodes, 0, nodes.size(), 1, 0);
+    } else {
+        render_layout(out, nodes, 0, nodes.size(), 1, 0);
     }
     out << L"} " << c_identifier(clean_alias(type.name)) << L", *P" << c_identifier(clean_alias(type.name)) << L";";
     return out.str();
@@ -243,13 +422,122 @@ std::wstring variant_value(const VARIANT& value) {
 uint64_t inferred_alignment(const type_t& type) {
     uint64_t alignment = 1;
     for (const auto& field : type.fields) {
-        const uint64_t bytes = std::max<uint64_t>(1, field.size_bits / 8);
+        const uint64_t width = field.is_bitfield ? field.storage_bits : field.size_bits;
+        const uint64_t bytes = std::max<uint64_t>(1, width / 8);
         uint64_t candidate = 1;
         while (candidate < bytes && candidate < 16) { candidate *= 2; }
         alignment = std::max(alignment, candidate);
     }
     if (type.size > 0) { alignment = std::min(alignment, type.size); }
     return std::max<uint64_t>(1, alignment);
+}
+
+// How far to follow anonymous members inward. Deep enough for real kernel types and
+// shallow enough that a malformed record cannot recurse without end.
+const int nested_depth_limit = 8;
+
+bool anonymous_name(const std::wstring& name) {
+    return name.empty()
+        || name.find(L"<unnamed") != std::wstring::npos
+        || name.find(L"<anonymous") != std::wstring::npos
+        || name.find(L"__unnamed") != std::wstring::npos;
+}
+
+void read_members(IDiaSymbol* udt, type_t& out_type, int depth);
+
+// An anonymous struct or union member has no type name worth printing, so pull its
+// members out and let the renderer inline the definition.
+bool build_nested(IDiaSymbol* field_type, int depth, std::shared_ptr<type_t>& out) {
+    if (depth <= 0) { return false; }
+    DWORD tag = SymTagNull;
+    field_type->get_symTag(&tag);
+    if (tag != SymTagUDT) { return false; }
+    if (!anonymous_name(get_name(field_type))) { return false; }
+
+    auto nested = std::make_shared<type_t>();
+    DWORD udt_kind = UdtStruct;
+    field_type->get_udtKind(&udt_kind);
+    nested->kind = udt_kind == UdtUnion ? L"union" : L"struct";
+    ULONGLONG length = 0;
+    if (SUCCEEDED(field_type->get_length(&length))) { nested->size = length; }
+    read_members(field_type, *nested, depth - 1);
+    if (nested->fields.empty()) { return false; }
+    out = nested;
+    return true;
+}
+
+void read_members(IDiaSymbol* udt, type_t& out_type, int depth) {
+    IDiaEnumSymbols* fields = nullptr;
+    ULONG fetched = 0;
+    if (FAILED(udt->findChildren(SymTagData, nullptr, nsNone, &fields)) || !fields) { return; }
+
+    IDiaSymbol* field_symbol = nullptr;
+    while (SUCCEEDED(fields->Next(1, &field_symbol, &fetched)) && fetched == 1 && field_symbol) {
+        DWORD data_kind = DataIsUnknown;
+        field_symbol->get_dataKind(&data_kind);
+        if (data_kind == DataIsMember) {
+            field_t field;
+            field.name = get_name(field_symbol);
+            field.order = static_cast<uint32_t>(out_type.fields.size());
+
+            LONG offset = 0;
+            field_symbol->get_offset(&offset);
+            const uint64_t unit_bits = static_cast<uint64_t>(std::max<LONG>(0, offset)) * 8;
+            field.offset_bits = unit_bits;
+
+            IDiaSymbol* field_type = nullptr;
+            if (SUCCEEDED(field_symbol->get_type(&field_type)) && field_type) {
+                field.type = format_type(field_type);
+                ULONGLONG field_len = 0;
+                if (SUCCEEDED(field_type->get_length(&field_len))) {
+                    field.size_bits = field_len * 8;
+                }
+                build_nested(field_type, depth, field.nested);
+            }
+            release_if(field_type);
+
+            DWORD location = LocIsNull;
+            field_symbol->get_locationType(&location);
+            if (location == LocIsBitField) {
+                // get_length is the declared width in bits here, not a byte count,
+                // and the member's own type carries the size of the storage unit.
+                DWORD bit_position = 0;
+                field_symbol->get_bitPosition(&bit_position);
+                ULONGLONG bit_length = 0;
+                field_symbol->get_length(&bit_length);
+                field.is_bitfield = true;
+                field.bit_position = bit_position;
+                field.storage_bits = field.size_bits;
+                field.size_bits = bit_length;
+                field.offset_bits = unit_bits + bit_position;
+                if (field.storage_bits == 0) {
+                    field.storage_bits = ((bit_position + bit_length + 7) / 8) * 8;
+                }
+            } else if (field.size_bits == 0) {
+                ULONGLONG field_len = 0;
+                if (SUCCEEDED(field_symbol->get_length(&field_len))) {
+                    field.size_bits = field_len * 8;
+                }
+            }
+
+            if (!field.name.empty() || field.nested) {
+                out_type.fields.push_back(field);
+            }
+        }
+        release_if(field_symbol);
+    }
+    release_if(fields);
+}
+
+// Offset order, and declaration order for anything sharing an offset. Sorting by
+// name instead would shuffle the members of every bitfield group and union.
+void sort_members(type_t& type) {
+    std::stable_sort(type.fields.begin(), type.fields.end(), [](const field_t& left, const field_t& right) {
+        const uint64_t left_start = unit_start(left);
+        const uint64_t right_start = unit_start(right);
+        if (left_start != right_start) { return left_start < right_start; }
+        return left.order < right.order;
+    });
 }
 
 bool load_dia(const wchar_t* dia_path, const wchar_t* pdb_path, IDiaDataSource** source, IDiaSession** session, IDiaSymbol** global) {
@@ -324,51 +612,10 @@ bool extract_type(IDiaSymbol* global, const std::wstring& name, type_t& out_type
     udt->get_udtKind(&udt_kind);
     out_type.kind = udt_kind == UdtUnion ? L"union" : L"struct";
 
-    IDiaEnumSymbols* fields = nullptr;
-    if (SUCCEEDED(udt->findChildren(SymTagData, nullptr, nsNone, &fields)) && fields) {
-        IDiaSymbol* field_symbol = nullptr;
-        while (SUCCEEDED(fields->Next(1, &field_symbol, &fetched)) && fetched == 1 && field_symbol) {
-            DWORD data_kind = DataIsUnknown;
-            field_symbol->get_dataKind(&data_kind);
-            if (data_kind == DataIsMember) {
-                field_t field;
-                field.name = get_name(field_symbol);
-
-                LONG offset = 0;
-                field_symbol->get_offset(&offset);
-                field.offset_bits = static_cast<uint64_t>(std::max<LONG>(0, offset)) * 8;
-
-                IDiaSymbol* field_type = nullptr;
-                if (SUCCEEDED(field_symbol->get_type(&field_type)) && field_type) {
-                    field.type = format_type(field_type);
-                    ULONGLONG field_len = 0;
-                    if (SUCCEEDED(field_type->get_length(&field_len))) {
-                        field.size_bits = field_len * 8;
-                    }
-                }
-                release_if(field_type);
-
-                if (field.size_bits == 0) {
-                    ULONGLONG field_len = 0;
-                    if (SUCCEEDED(field_symbol->get_length(&field_len))) {
-                        field.size_bits = field_len * 8;
-                    }
-                }
-
-                if (!field.name.empty()) {
-                    out_type.fields.push_back(field);
-                }
-            }
-            release_if(field_symbol);
-        }
-    }
-    release_if(fields);
+    read_members(udt, out_type, nested_depth_limit);
     release_if(udt);
 
-    std::sort(out_type.fields.begin(), out_type.fields.end(), [](const field_t& left, const field_t& right) {
-        if (left.offset_bits != right.offset_bits) { return left.offset_bits < right.offset_bits; }
-        return left.name < right.name;
-    });
+    sort_members(out_type);
     out_type.alignment = inferred_alignment(out_type);
     return true;
 }
@@ -387,51 +634,9 @@ bool extract_udt(IDiaSymbol* udt, type_t& out_type) {
     udt->get_udtKind(&udt_kind);
     out_type.kind = udt_kind == UdtUnion ? L"union" : L"struct";
 
-    IDiaEnumSymbols* fields = nullptr;
-    ULONG fetched = 0;
-    if (SUCCEEDED(udt->findChildren(SymTagData, nullptr, nsNone, &fields)) && fields) {
-        IDiaSymbol* field_symbol = nullptr;
-        while (SUCCEEDED(fields->Next(1, &field_symbol, &fetched)) && fetched == 1 && field_symbol) {
-            DWORD data_kind = DataIsUnknown;
-            field_symbol->get_dataKind(&data_kind);
-            if (data_kind == DataIsMember) {
-                field_t field;
-                field.name = get_name(field_symbol);
+    read_members(udt, out_type, nested_depth_limit);
 
-                LONG offset = 0;
-                field_symbol->get_offset(&offset);
-                field.offset_bits = static_cast<uint64_t>(std::max<LONG>(0, offset)) * 8;
-
-                IDiaSymbol* field_type = nullptr;
-                if (SUCCEEDED(field_symbol->get_type(&field_type)) && field_type) {
-                    field.type = format_type(field_type);
-                    ULONGLONG field_len = 0;
-                    if (SUCCEEDED(field_type->get_length(&field_len))) {
-                        field.size_bits = field_len * 8;
-                    }
-                }
-                release_if(field_type);
-
-                if (field.size_bits == 0) {
-                    ULONGLONG field_len = 0;
-                    if (SUCCEEDED(field_symbol->get_length(&field_len))) {
-                        field.size_bits = field_len * 8;
-                    }
-                }
-
-                if (!field.name.empty()) {
-                    out_type.fields.push_back(field);
-                }
-            }
-            release_if(field_symbol);
-        }
-    }
-    release_if(fields);
-
-    std::sort(out_type.fields.begin(), out_type.fields.end(), [](const field_t& left, const field_t& right) {
-        if (left.offset_bits != right.offset_bits) { return left.offset_bits < right.offset_bits; }
-        return left.name < right.name;
-    });
+    sort_members(out_type);
     out_type.alignment = inferred_alignment(out_type);
     return true;
 }
@@ -703,9 +908,13 @@ int wmain(int argc, wchar_t** argv) {
             const auto& field = type.fields[field_index];
             if (field_index != 0) { std::wcout << L","; }
             std::wcout << L"{\"name\":\"" << json_escape(field.name) << L"\",";
-            std::wcout << L"\"field_type_name\":\"" << json_escape(field.type) << L"\",";
+            std::wcout << L"\"field_type_name\":\"" << json_escape(field.nested ? field.nested->kind : field.type) << L"\",";
             std::wcout << L"\"offset_bits\":" << field.offset_bits << L",";
             std::wcout << L"\"size_bits\":" << field.size_bits;
+            if (field.is_bitfield) {
+                std::wcout << L",\"bit_position\":" << field.bit_position;
+                std::wcout << L",\"storage_bits\":" << field.storage_bits;
+            }
             if (field.has_value) { std::wcout << L",\"value\":\"" << json_escape(field.value) << L"\""; }
             std::wcout << L"}";
         }

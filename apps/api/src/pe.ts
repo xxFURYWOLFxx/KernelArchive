@@ -53,6 +53,11 @@ interface ExtractedPdbType {
     field_type_name: string;
     offset_bits: number;
     size_bits: number;
+    // Present only on bitfields. offset_bits is then the member's absolute bit
+    // offset and size_bits its declared width, so the storage unit it packs into is
+    // only recoverable from these two.
+    bit_position?: number;
+    storage_bits?: number;
     value?: string;
   }>;
 }
@@ -547,19 +552,30 @@ export async function extract_pdb_data(module: KernelModule, pdb_path: string, p
       alignment: type.alignment,
       reconstructed_c: type.reconstructed_c,
       hash: createHash("sha256").update(type.reconstructed_c).digest("hex").slice(0, 24),
-      fields: type.fields.map((field, index) => ({
-        id: `field_${type_name_id}_${bounded_id_part(field.name, 48)}_${index}_${module.sha256.slice(0, 12)}`,
-        type_id,
-        name: field.name,
-        field_type_name: field.field_type_name,
-        offset_bits: field.offset_bits,
-        size_bits: field.size_bits,
-        flags_json: {
-          source: "dia",
-          offset_hex: hex(field.offset_bits / 8),
-          ...(field.value !== undefined ? { enum_value: field.value } : {}),
-        },
-      })),
+      fields: type.fields.map((field, index) => {
+        // A bitfield's offset_bits points at its first bit, which is rarely on a byte
+        // boundary. The address a caller needs is the storage unit holding it.
+        const bit_position = field.bit_position;
+        const unit_offset_bits = bit_position === undefined ? field.offset_bits : field.offset_bits - bit_position;
+        return {
+          id: `field_${type_name_id}_${bounded_id_part(field.name, 48)}_${index}_${module.sha256.slice(0, 12)}`,
+          type_id,
+          name: field.name,
+          field_type_name: field.field_type_name,
+          offset_bits: field.offset_bits,
+          size_bits: field.size_bits,
+          flags_json: {
+            source: "dia",
+            offset_hex: hex(unit_offset_bits / 8),
+            ...(bit_position === undefined ? {} : {
+              bit_position,
+              bit_width: field.size_bits,
+              storage_bits: field.storage_bits ?? 0,
+            }),
+            ...(field.value !== undefined ? { enum_value: field.value } : {}),
+          },
+        };
+      }),
       created_at: module.created_at,
     };
   });

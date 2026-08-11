@@ -16,6 +16,19 @@ function offset_label(offset_bits: number) {
   return bit_offset === 0 ? `0x${byte_offset.toString(16)}` : `0x${byte_offset.toString(16)}:${bit_offset}`;
 }
 
+// A bitfield's own offset lands mid-byte, so report the storage unit it packs into
+// and describe the bits separately.
+function bitfield_of(field: KernelType["fields"][number]) {
+  const position = field.flags_json.bit_position;
+  const width = field.flags_json.bit_width;
+  if (typeof position !== "number" || typeof width !== "number") { return undefined; }
+  return {
+    offset: offset_label(field.offset_bits - position),
+    range: width === 1 ? `bit ${position}` : `bits ${position}-${position + width - 1}`,
+    width,
+  };
+}
+
 export function TypeFields({ fieldCount, typeId, typeKind }: { fieldCount: number; typeId: string; typeKind: KernelType["kind"] }) {
   const [open, set_open] = useState(false);
   const [fields, set_fields] = useState<KernelType["fields"]>([]);
@@ -90,7 +103,8 @@ export function TypeFields({ fieldCount, typeId, typeKind }: { fieldCount: numbe
 
           <div className="grid gap-2 md:grid-cols-2">
             {visible_fields.map((field) => {
-              const offset = offset_label(field.offset_bits);
+              const bitfield = bitfield_of(field);
+              const offset = bitfield ? bitfield.offset : offset_label(field.offset_bits);
               const enum_value = typeof field.flags_json.enum_value === "string" ? field.flags_json.enum_value : undefined;
               return (
                 <div className="rounded-md border border-white/10 bg-black/30 p-3" key={field.id}>
@@ -98,7 +112,11 @@ export function TypeFields({ fieldCount, typeId, typeKind }: { fieldCount: numbe
                     <span className="min-w-0 truncate font-mono text-sm text-zinc-100">{field.name}</span>
                     <Badge tone="zinc">{enum_type ? `= ${enum_value ?? "?"}` : offset}</Badge>
                   </div>
-                  <div className="mb-3 truncate font-mono text-xs text-zinc-500">{field.field_type_name}</div>
+                  <div className="mb-3 truncate font-mono text-xs text-zinc-500">
+                    {field.field_type_name}
+                    {bitfield && <span className="text-cyan-200/70">{` : ${bitfield.width}`}</span>}
+                    {bitfield && <span className="text-zinc-600">{`  ${bitfield.range}`}</span>}
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     <CopyButton label={enum_type ? "Copy value" : "Copy offset"} value={enum_type ? enum_value ?? "" : offset} />
                     <CopyButton label={enum_type ? "Copy enumerator" : "Copy member"} value={enum_type ? `${field.name} = ${enum_value ?? "?"}` : `${field.name} = ${offset}`} />
