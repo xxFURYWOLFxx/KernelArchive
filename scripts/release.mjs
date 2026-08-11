@@ -107,6 +107,10 @@ copy("packages/config");
 // running when a deployment looks healthy but serves nothing, so it ships too.
 copy("scripts/doctor.mjs");
 
+// A backfill run on the server leaves gigabytes in the WAL, and folding it back into
+// the database is this script's job.
+copy("scripts/prepare-data.mjs");
+
 // The PDB extractor is only needed to index new binaries, not to serve the archive.
 if (existsSync(join(repo_root, "tools/pdb-dump/pdb_dump.exe"))) {
   copy("tools/pdb-dump/pdb_dump.exe");
