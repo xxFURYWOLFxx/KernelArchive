@@ -1,4 +1,6 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+import { build_context_label, noindex_metadata, page_metadata } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/copy-button";
 import { MetadataTable } from "@/components/metadata-table";
@@ -10,6 +12,26 @@ import { ModuleSymbols } from "@/components/module-symbols";
 import type { ModulePdbStatus } from "@kernelarchive/shared";
 import { api_data, api_list_all, type BuildCatalogEntry, type ModuleDetailContext } from "@/lib/api";
 import { build_label, product_label } from "@/lib/build-family";
+
+export async function generateMetadata({ params }: { params: Promise<{ moduleId: string }> }): Promise<Metadata> {
+  const { moduleId } = await params;
+  const context = await api_data<ModuleDetailContext | undefined>(`/api/v1/modules/${moduleId}/context`, undefined);
+  if (!context) { return noindex_metadata("Module not found"); }
+  const { module } = context;
+  const where = build_context_label(context.build ?? undefined);
+  const title = `${module.name} symbols${where ? ` (${where})` : ""}`;
+  const description = [
+    `Exported functions, symbols and type layouts extracted from ${module.name}`,
+    where ? ` in ${where}` : "",
+    `. ${module.function_count.toLocaleString()} functions and ${module.type_count.toLocaleString()} types, keyed to SHA-256 ${module.sha256.slice(0, 16)}.`,
+  ].join("");
+  return page_metadata({
+    title,
+    description,
+    path: `/modules/${module.id}`,
+    keywords: [module.name, `${module.name} exports`, `${module.name} symbols`, `${module.name} offsets`, where].filter(Boolean),
+  });
+}
 
 export default async function ModuleDetailPage({ params }: { params: Promise<{ moduleId: string }> }) {
   const { moduleId } = await params;

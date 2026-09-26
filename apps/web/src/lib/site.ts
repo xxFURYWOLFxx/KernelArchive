@@ -2,8 +2,20 @@
 // Everything user-facing that is not archive data should come from here so the
 // footer, legal pages and metadata can never drift apart.
 
+// NEXT_PUBLIC_SITE_URL is inlined at build time. A production bundle built
+// without it used to fall back to localhost, which shipped a sitemap and robots
+// file pointing at a host no crawler can reach, so the public origin is the
+// default and localhost is only used while developing.
+function resolve_site_url() {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.trim().replace(/\/+$/, "");
+  if (configured) { return configured; }
+  if (process.env.NODE_ENV === "development") { return "http://localhost:3000"; }
+  return "https://kernelarchive.com";
+}
+
 export const site = {
   name: "KernelArchive",
+  url: resolve_site_url(),
   tagline: "Windows kernel symbol archive and PDB intelligence platform",
   author: "FURYWOLF",
   author_url: "https://furywolf.net",

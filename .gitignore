@@ -40,3 +40,9 @@ test-results/
 *.obj
 out/
 tmp/
+
+# Generated from the archive by scripts/generate-sitemap.mjs at release time.
+# Multi-megabyte XML that changes on every re-index; it belongs in the package,
+# not in git.
+apps/web/public/sitemap.xml
+apps/web/public/sitemaps/

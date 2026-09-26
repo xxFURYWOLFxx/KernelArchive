@@ -1,4 +1,7 @@
 import Link from "next/link";
+import type { Metadata } from "next";
+import { build_display_label } from "@kernelarchive/shared";
+import { noindex_metadata, page_metadata } from "@/lib/seo";
 import { notFound } from "next/navigation";
 import { Badge } from "@kernelarchive/ui";
 import { MetadataTable } from "@/components/metadata-table";
@@ -7,6 +10,28 @@ import { build_label, detection_label } from "@/lib/build-family";
 import { module_badge } from "@/lib/module-badge";
 
 const modules_per_page = 50;
+
+export async function generateMetadata({ params }: { params: Promise<{ buildId: string }> }): Promise<Metadata> {
+  const { buildId } = await params;
+  const build = await api_data<WindowsBuild | undefined>(`/api/v1/builds/${buildId}`, undefined);
+  if (!build) { return noindex_metadata("Build not found"); }
+  const catalog = await api_list_all<BuildCatalogEntry>("/api/v1/builds/catalog");
+  const totals = catalog.find((entry) => entry.id === build.id);
+  const label = build_display_label(build);
+  const description = [
+    `Kernel symbols for ${label}.`,
+    ` ${(totals?.module_count ?? 0).toLocaleString()} modules,`,
+    ` ${(totals?.function_count ?? 0).toLocaleString()} functions and`,
+    ` ${(totals?.type_count ?? 0).toLocaleString()} type definitions,`,
+    " every offset pinned to this build rather than averaged across versions.",
+  ].join("");
+  return page_metadata({
+    title: `${label} kernel symbols`,
+    description,
+    path: `/builds/${build.id}`,
+    keywords: [label, `${build_label(build)} offsets`, `${build.product_name} kernel symbols`, "ntoskrnl offsets"],
+  });
+}
 
 export default async function BuildDetailPage({ params, searchParams }: { params: Promise<{ buildId: string }>; searchParams: Promise<{ page?: string }> }) {
   const { buildId } = await params;

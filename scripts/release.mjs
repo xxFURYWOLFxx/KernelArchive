@@ -72,6 +72,12 @@ if (!flags.has("--skip-build")) {
   run("pnpm", ["turbo", "build"]);
 }
 
+// The sitemap lists archive content, so it is written from the database into
+// apps/web/public before that directory is staged. Without the archive present
+// this still emits the static pages rather than nothing.
+console.log("> generating the sitemap");
+run("node", ["scripts/generate-sitemap.mjs"]);
+
 if (!existsSync(join(repo_root, "apps/web/.next/BUILD_ID"))) {
   throw new Error("apps/web/.next is not a completed production build. Run without --skip-build.");
 }
