@@ -46,3 +46,7 @@ tmp/
 # not in git.
 apps/web/public/sitemap.xml
 apps/web/public/sitemaps/
+
+# Python bytecode from running the collector.
+__pycache__/
+*.pyc

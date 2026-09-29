@@ -41,7 +41,10 @@ except ImportError:  # Reported cleanly after argument parsing.
 
 
 PROGRAM_VERSION = "1.4.0"
-COLLECTION_SCHEMA_VERSION = 2
+# Bumped when the set of files a release collects changes, so an already
+# collected release is gathered again instead of being skipped as complete.
+# 3 added the Windows\Boot loaders.
+COLLECTION_SCHEMA_VERSION = 3
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_OUTPUT = SCRIPT_DIR / "Collected_SYS"
 DEFAULT_WORK_DIR = (
@@ -1978,6 +1981,28 @@ def is_kernel_component_name(name: str) -> bool:
     ) is not None
 
 
+def is_boot_component_name(name: str) -> bool:
+    """Everything under Windows\\Boot that is a Portable Executable.
+
+    Matching on extension rather than a list of names keeps bootmgfw.efi,
+    bootmgr.efi, the memory test and whatever a future release adds without this
+    needing to know their names in advance. Windows\\Boot\\PCAT\\bootmgr is a real
+    boot sector with a compressed payload rather than a PE, and is left alone.
+    """
+    return name.casefold().endswith((".efi", ".exe", ".dll"))
+
+
+def is_boot_resource_directory(name: str) -> bool:
+    """Localised and asset subdirectories of Windows\\Boot.
+
+    Each locale directory holds a .mui resource copy of every loader, so walking
+    them multiplies the same binaries by the number of shipped languages without
+    adding a single new symbol.
+    """
+    folded = name.casefold()
+    return folded in {"fonts", "resources"} or re.fullmatch(r"[a-z]{2,3}-[a-z0-9-]+", folded) is not None
+
+
 def extract_system_files(
     mount_dir: Path,
     output_dir: Path,
@@ -2029,6 +2054,23 @@ def extract_system_files(
             for file_name in file_names:
                 if file_name.casefold().endswith(".sys"):
                     add_candidate(Path(current) / file_name, {"driver"})
+
+    # The boot loaders live in Windows\Boot, not System32, so nothing here ever
+    # saw bootmgfw.efi or bootmgr.efi. They carry no export table at all, which
+    # makes their public PDBs the only way to get anything out of them, and those
+    # are published.
+    boot_root = mount_dir / "Windows" / "Boot"
+    if boot_root.is_dir():
+        logger.info("Scanning for boot components in %s", boot_root)
+        for current, directory_names, file_names in os.walk(boot_root, followlinks=False):
+            directory_names[:] = [name for name in directory_names if not is_boot_resource_directory(name)]
+            directory_names.sort(key=str.casefold)
+            file_names.sort(key=str.casefold)
+            for file_name in file_names:
+                if is_boot_component_name(file_name):
+                    add_candidate(Path(current) / file_name, {"kernel"})
+    else:
+        logger.warning("Boot directory is absent: %s", boot_root)
 
     for directory in (system32, syswow64):
         if not directory.is_dir():
