@@ -49,11 +49,27 @@ export function windows_product_label(build: WindowsBuild) {
   return family === "Manual Review" ? "Windows" : family;
 }
 
+// Release names stopped tracking build numbers in order. 26H2 ships on 26300
+// while 26H1 ships on 28000, so the later name sits on the lower build and any
+// ladder of >= comparisons labels both of them wrongly. Known releases are matched
+// exactly; the comparisons below still hold for the older lines.
+const windows_11_releases = new Map<number, string>([
+  [22000, "21H2"],
+  [22621, "22H2"],
+  [22631, "23H2"],
+  [26100, "24H2"],
+  [26200, "25H2"],
+  [26300, "26H2"],
+  [28000, "26H1"],
+]);
+
 export function windows_release_label(build: WindowsBuild) {
   const build_number = build_number_value(build);
   const family = build_family(build);
 
   if (family === "Windows 11") {
+    const named = windows_11_releases.get(build_number);
+    if (named) { return named; }
     if (build_number >= 26200) { return "25H2"; }
     if (build_number >= 26100) { return "24H2"; }
     if (build_number >= 22631) { return "23H2"; }

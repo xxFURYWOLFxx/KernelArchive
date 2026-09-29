@@ -193,6 +193,26 @@
       "release_date": "2025-09-30",
       "minimum_free_gib": 45,
       "aliases": ["11-25H2", "win11-25h2"]
+    },
+    {
+      "id": "Win11-26H1",
+      "product": "Windows 11",
+      "version": "26H1",
+      "display_name": "Windows 11 26H1",
+      "build_major": 28000,
+      "release_date": "2025-11-18",
+      "minimum_free_gib": 45,
+      "aliases": ["11-26H1", "win11-26h1"]
+    },
+    {
+      "id": "Win11-26H2",
+      "product": "Windows 11",
+      "version": "26H2",
+      "display_name": "Windows 11 26H2",
+      "build_major": 26300,
+      "release_date": "2026-09-14",
+      "minimum_free_gib": 45,
+      "aliases": ["11-26H2", "win11-26h2"]
     }
   ]
 }
