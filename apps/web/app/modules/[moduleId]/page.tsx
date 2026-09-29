@@ -8,6 +8,7 @@ import { ModuleAdvancedDetails } from "@/components/module-advanced-details";
 import { ModuleDownloadLink } from "@/components/module-download-link";
 import { ModulePackageLink } from "@/components/module-package-link";
 import { ModulePdbNotice } from "@/components/module-pdb-notice";
+import { ModuleSymbolIndex } from "@/components/module-symbol-index";
 import { ModuleSymbols } from "@/components/module-symbols";
 import type { ModulePdbStatus } from "@kernelarchive/shared";
 import { api_data, api_list_all, type BuildCatalogEntry, type ModuleDetailContext } from "@/lib/api";
@@ -33,8 +34,11 @@ export async function generateMetadata({ params }: { params: Promise<{ moduleId:
   });
 }
 
-export default async function ModuleDetailPage({ params }: { params: Promise<{ moduleId: string }> }) {
+export default async function ModuleDetailPage({ params, searchParams }: { params: Promise<{ moduleId: string }>; searchParams: Promise<{ type_page?: string; function_page?: string }> }) {
   const { moduleId } = await params;
+  const { type_page, function_page } = await searchParams;
+  const type_index_page = Math.max(1, Number.parseInt(type_page ?? "1", 10) || 1);
+  const function_index_page = Math.max(1, Number.parseInt(function_page ?? "1", 10) || 1);
   const context = await api_data<ModuleDetailContext | undefined>(`/api/v1/modules/${moduleId}/context`, undefined);
   if (!context) { notFound(); }
   const { module } = context;
@@ -85,6 +89,7 @@ export default async function ModuleDetailPage({ params }: { params: Promise<{ m
         <section className="min-w-0 space-y-4">
           <ModuleSymbols buildHasTypes={build_has_types} buildId={module.build_id} functionCount={module.function_count} moduleId={module.id} typeCount={module.type_count} />
           <ModuleAdvancedDetails module={module} />
+          <ModuleSymbolIndex functionPage={function_index_page} moduleId={module.id} typePage={type_index_page} />
         </section>
       </div>
     </div>

@@ -23,7 +23,7 @@ const named = new Map(argv.filter((value) => value.startsWith("--") && value.inc
 
 const site = (named.get("site") ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://kernelarchive.com").trim().replace(/\/+$/, "");
 const max_types = Number(named.get("max-types") ?? 50000);
-const max_functions = Number(named.get("max-functions") ?? 0);
+const max_functions = Number(named.get("max-functions") ?? 25000);
 // The sitemap protocol caps a single file at 50,000 URLs and 50 MB.
 const urls_per_file = 45000;
 
@@ -120,7 +120,15 @@ if (existsSync(db_path)) {
   // The C++ template instantiations that template-heavy drivers drag in are not,
   // and there are tens of thousands of them in a single binary. Without this the
   // whole budget goes to wistd::is_constructible noise before reaching _EPROCESS.
-  const worth_indexing = (name) => /^_?[A-Z][A-Z0-9_]{2,}$/.test(name ?? "");
+  // Windows kernel types are named in caps, with or without a leading underscore.
+  // Exported functions are CamelCase. Neither looks like the decorated C++ names
+  // and template instantiations that template-heavy drivers drag in by the tens
+  // of thousands, which is what the budget went to before this existed.
+  const worth_indexing = (collection, name) => {
+    if (typeof name !== "string" || name.length === 0) { return false; }
+    if (collection === "functions") { return /^[A-Za-z_][A-Za-z0-9_]{3,}$/.test(name); }
+    return /^_?[A-Z][A-Z0-9_]{2,}$/.test(name);
+  };
 
   // Symbols hang off their module, so the work is driven from the parent index
   // rather than a scan over millions of payloads. Modules are visited smallest
@@ -148,7 +156,7 @@ if (existsSync(db_path)) {
       for (const module_id of module_ids) {
         for (const row of statement.all(collection, module_id)) {
           const key = (row.name ?? "").toLowerCase();
-          if (!worth_indexing(row.name) || seen.has(key)) { continue; }
+          if (!worth_indexing(collection, row.name) || seen.has(key)) { continue; }
           // A typedef page carries one alias line and nothing to rank on, and a
           // zero-size record is a forward declaration with no layout at all.
           if (collection === "types" && (Number(row.size ?? 0) <= 0 || row.kind === "typedef")) { continue; }

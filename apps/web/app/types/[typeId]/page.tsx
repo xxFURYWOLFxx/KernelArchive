@@ -109,7 +109,7 @@ export default async function TypeDetailPage({ params }: { params: Promise<{ typ
             <CodePanel code={type.reconstructed_c} />
           </div>
 
-          {type.kind !== "typedef" && <TypeFields fieldCount={type.fields.length} typeId={type.id} typeKind={type.kind} />}
+          {type.kind !== "typedef" && <TypeFields fieldCount={type.fields.length} fields={type.fields} typeKind={type.kind} />}
 
           <details className="ka-panel rounded-xl">
             <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-zinc-100">Advanced metadata</summary>

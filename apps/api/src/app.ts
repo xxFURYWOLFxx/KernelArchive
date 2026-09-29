@@ -60,6 +60,9 @@ export async function create_app() {
     hook: "preHandler",
   });
   server.addHook("onSend", async (request, reply, payload) => {
+    // The API is crawlable so that a renderer can read it, but the JSON itself
+    // should never show up as a search result in place of the page built from it.
+    if (!reply.hasHeader("x-robots-tag")) { reply.header("x-robots-tag", "noindex"); }
     if (reply.hasHeader("cache-control")) { return payload; }
     const private_route = request.url.startsWith("/api/v1/auth/") || request.url.startsWith("/api/v1/admin/") || request.url.startsWith("/api/v1/me/") || request.url.startsWith("/api/v1/jobs/");
     const pattern_route = request.url.includes("/pattern") || request.url.startsWith("/api/v1/patterns/");

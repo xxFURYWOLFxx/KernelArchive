@@ -11,6 +11,17 @@ import { module_badge } from "@/lib/module-badge";
 
 const modules_per_page = 50;
 
+// First, last, and a window around the current page, so every page of a large
+// build is a couple of hops away instead of a long chain of Next clicks.
+function page_numbers(page: number, pages: number) {
+  const wanted = new Set<number>([1, pages, page - 1, page, page + 1]);
+  for (const step of [10, 50, 100]) {
+    wanted.add(Math.max(1, page - step));
+    wanted.add(Math.min(pages, page + step));
+  }
+  return Array.from(wanted).filter((value) => value >= 1 && value <= pages).sort((left, right) => left - right);
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ buildId: string }> }): Promise<Metadata> {
   const { buildId } = await params;
   const build = await api_data<WindowsBuild | undefined>(`/api/v1/builds/${buildId}`, undefined);
@@ -94,11 +105,23 @@ export default async function BuildDetailPage({ params, searchParams }: { params
             {modules.length === 0 && <div className="px-3 py-6 text-sm text-zinc-500">No modules are indexed for this build yet.</div>}
           </div>
           {pages > 1 && (
-            <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
               {page > 1
                 ? <Link className="rounded border border-white/10 px-3 py-1.5 text-zinc-300 transition-colors hover:bg-white/5" href={`/builds/${build.id}?page=${page - 1}`}>Previous</Link>
                 : <span className="rounded border border-white/5 px-3 py-1.5 text-zinc-600">Previous</span>}
-              <span className="text-xs text-zinc-500">Page {page.toLocaleString()} of {pages.toLocaleString()}</span>
+              {/* Numbered links, not just Previous and Next. With a build of 3,000
+                  modules the last page was sixty sequential clicks from the first,
+                  which is deeper than a crawler will follow. */}
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                {page_numbers(page, pages).map((value, index, list) => (
+                  <span className="flex items-center gap-1.5" key={value}>
+                    {index > 0 && list[index - 1] !== value - 1 && <span aria-hidden className="text-zinc-600">...</span>}
+                    {value === page
+                      ? <span className="rounded border border-cyan-400/50 bg-cyan-300/10 px-2 py-1 text-cyan-100">{value}</span>
+                      : <Link className="rounded border border-white/10 px-2 py-1 text-zinc-400 transition-colors hover:border-cyan-300/60 hover:text-cyan-100" href={`/builds/${build.id}?page=${value}`}>{value}</Link>}
+                  </span>
+                ))}
+              </div>
               {page < pages
                 ? <Link className="rounded border border-white/10 px-3 py-1.5 text-zinc-300 transition-colors hover:bg-white/5" href={`/builds/${build.id}?page=${page + 1}`}>Next</Link>
                 : <span className="rounded border border-white/5 px-3 py-1.5 text-zinc-600">Next</span>}

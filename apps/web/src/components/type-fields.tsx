@@ -1,12 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import { Badge, Button } from "@kernelarchive/ui";
 import type { KernelType } from "@kernelarchive/shared";
-import { api_json } from "@/lib/api";
 import { CopyButton } from "./copy-button";
-import { LoadingState } from "./loading-state";
 
 const page_size = 40;
 
@@ -29,12 +27,12 @@ function bitfield_of(field: KernelType["fields"][number]) {
   };
 }
 
-export function TypeFields({ fieldCount, typeId, typeKind }: { fieldCount: number; typeId: string; typeKind: KernelType["kind"] }) {
-  const [open, set_open] = useState(false);
-  const [fields, set_fields] = useState<KernelType["fields"]>([]);
-  const [loaded, set_loaded] = useState(false);
-  const [loading, set_loading] = useState(false);
-  const [error, set_error] = useState("");
+// The member list used to be fetched when the disclosure was opened, which meant
+// every field name and offset on the site existed only after a click and never in
+// the HTML. The page already holds these fields, so they are passed straight in
+// and rendered on the server; search and paging stay client side on top of markup
+// that is already there.
+export function TypeFields({ fieldCount, fields, typeKind }: { fieldCount: number; fields: KernelType["fields"]; typeKind: KernelType["kind"] }) {
   const [query, set_query] = useState("");
   const [visible_count, set_visible_count] = useState(page_size);
   const filtered_fields = useMemo(() => {
@@ -49,31 +47,9 @@ export function TypeFields({ fieldCount, typeId, typeKind }: { fieldCount: numbe
   const visible_fields = filtered_fields.slice(0, visible_count);
   const enum_type = typeKind === "enum";
 
-  useEffect(() => {
-    if (!open || loaded) { return; }
-    let cancelled = false;
-    set_loading(true);
-    set_error("");
-    void api_json<KernelType>(`/api/v1/types/${typeId}`)
-      .then((result) => {
-        if (!cancelled) {
-          set_fields(result.data.fields);
-          set_loaded(true);
-        }
-      })
-      .catch((reason: unknown) => {
-        if (!cancelled) { set_error(reason instanceof Error ? reason.message : "Fields unavailable"); }
-      })
-      .finally(() => {
-        if (!cancelled) { set_loading(false); }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loaded, open, typeId]);
 
   return (
-    <details className="group ka-panel rounded-xl" data-testid="type-fields" onToggle={(event) => set_open(event.currentTarget.open)}>
+    <details className="group ka-panel rounded-xl" data-testid="type-fields" open>
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
         <span className="flex items-center gap-2 text-sm font-semibold text-zinc-100">
           {enum_type ? "Values" : "Members"}
@@ -82,11 +58,8 @@ export function TypeFields({ fieldCount, typeId, typeKind }: { fieldCount: numbe
         <Badge tone="blue">{fieldCount.toLocaleString()}</Badge>
       </summary>
 
-      {open && (
-        <div className="border-t border-white/10 p-4">
-          {loading && <LoadingState compact detail="Reading cached PDB definitions" label={`Loading ${enum_type ? "enum values" : "type members"}`} rows={2} />}
-          {!loading && error && <div className="rounded-md border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-100">{error}</div>}
-          {!loading && !error && loaded && (
+      <div className="border-t border-white/10 p-4">
+        {fields.length > 0 && (
             <>
           <div className="relative mb-4">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
@@ -135,9 +108,8 @@ export function TypeFields({ fieldCount, typeId, typeKind }: { fieldCount: numbe
             </div>
           )}
             </>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </details>
   );
 }
