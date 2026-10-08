@@ -83,7 +83,6 @@ function write_sharded(prefix, entries) {
 
 const static_pages = [
   ["/", "daily", "1.0"],
-  ["/explorer", "daily", "0.9"],
   ["/builds", "daily", "0.9"],
   ["/search", "weekly", "0.7"],
   ["/patterns", "weekly", "0.7"],

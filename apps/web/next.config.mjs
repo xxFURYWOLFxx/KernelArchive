@@ -38,6 +38,15 @@ const nextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // A page component calling redirect() gets prerendered as a full HTML document
+  // that redirects in the browser and answers 200, so a crawler indexes a blank
+  // page. Declaring it here answers 308 before any rendering happens.
+  async redirects() {
+    return [
+      { source: "/explorer", destination: "/", permanent: true },
+    ];
+  },
+
   async rewrites() {
     return [
       {

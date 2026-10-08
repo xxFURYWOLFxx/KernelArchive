@@ -6,7 +6,7 @@ import { Braces, Database, LayoutDashboard, Layers3, ScanSearch, Search, Shield 
 import { GlobalSearch } from "./global-search";
 
 const nav_items = [
-  { href: "/explorer", label: "Explorer", icon: LayoutDashboard },
+  { href: "/", label: "Explorer", icon: LayoutDashboard },
   { href: "/builds", label: "Builds", icon: Layers3 },
   { href: "/search", label: "Search", icon: Search },
   { href: "/patterns", label: "Patterns", icon: ScanSearch },
@@ -34,7 +34,7 @@ export function AppShell({ children, section }: { children: ReactNode; section: 
             <nav className="flex max-w-full shrink-0 gap-1 overflow-x-auto rounded-md border border-white/10 bg-black/25 p-1 ka-scroll">
               {nav_items.map((item) => {
                 const Icon = item.icon;
-                const active = item.label === section || (section === "Explorer" && item.href === "/explorer");
+                const active = item.label === section || (section === "Explorer" && item.href === "/");
                 return (
                   <Link
                     aria-current={active ? "page" : undefined}

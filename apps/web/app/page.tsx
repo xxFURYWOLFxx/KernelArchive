@@ -3,6 +3,8 @@ import Link from "next/link";
 import { ArrowRight, Binary, GitCompare, Search } from "lucide-react";
 import { api_data, api_list_all, type BuildCatalogEntry, type CacheStats } from "@/lib/api";
 import { build_label, grouped_builds, product_label } from "@/lib/build-family";
+import { Suspense } from "react";
+import { ExplorerDashboard } from "@/components/explorer-dashboard";
 import { SiteStructuredData } from "@/components/structured-data";
 import { page_metadata } from "@/lib/seo";
 
@@ -19,9 +21,9 @@ export const metadata: Metadata = page_metadata({
 });
 
 const entry_points = [
-  { href: "/explorer", icon: Search, title: "Explore the archive", body: "Drill from a Windows release down to a single driver and the structures it defines." },
-  { href: "/search", icon: Binary, title: "Search symbols", body: "Find a structure, field or exported function by name across every indexed build." },
+  { href: "/search", icon: Search, title: "Search symbols", body: "Find a structure, field or exported function by name across every indexed build." },
   { href: "/diff", icon: GitCompare, title: "Compare builds", body: "See which structures changed and which offsets moved between two Windows versions." },
+  { href: "/api-docs", icon: Binary, title: "Query the API", body: "Every record here is reachable over HTTP, with no key and no account." },
 ];
 
 function stat_row(stats: CacheStats | undefined) {
@@ -44,7 +46,11 @@ export default async function HomePage() {
     <>
       <SiteStructuredData />
 
-      <section className="ka-panel rounded-xl p-6">
+      <Suspense>
+        <ExplorerDashboard />
+      </Suspense>
+
+      <section className="ka-panel mt-4 rounded-xl p-6">
         <h1 className="max-w-3xl text-2xl font-semibold leading-tight text-zinc-50">
           Windows kernel internals, pinned to the build they came from
         </h1>

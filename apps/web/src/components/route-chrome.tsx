@@ -11,7 +11,7 @@ function workspace_section(pathname: string) {
   if (pathname === "/diff") { return "Diff"; }
   if (pathname === "/api-docs") { return "API Docs"; }
   if (pathname === "/admin") { return "Admin"; }
-  if (pathname.startsWith("/modules/") || pathname.startsWith("/types/") || pathname.startsWith("/functions/")) { return "Explorer"; }
+  if (pathname === "/" || pathname.startsWith("/modules/") || pathname.startsWith("/types/") || pathname.startsWith("/functions/")) { return "Explorer"; }
   return undefined;
 }
 
