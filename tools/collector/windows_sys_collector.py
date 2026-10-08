@@ -2008,14 +2008,19 @@ def extract_system_files(
     output_dir: Path,
     include_driverstore: bool,
     logger: logging.Logger,
+    skip_drivers: bool = False,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     system32 = mount_dir / "Windows" / "System32"
     syswow64 = mount_dir / "Windows" / "SysWOW64"
-    driver_roots = [
+    # Skipping drivers leaves the kernel components and the boot loaders, which is
+    # a few dozen megabytes against a few gigabytes. Re-collecting a release that
+    # was already gathered, to pick up files that were missed the first time, does
+    # not need its .sys corpus copied again.
+    driver_roots: list[Path] = [] if skip_drivers else [
         system32 / "drivers",
         syswow64 / "drivers",
     ]
-    if include_driverstore:
+    if include_driverstore and not skip_drivers:
         driver_roots.insert(
             1,
             system32 / "DriverStore" / "FileRepository",
@@ -2081,7 +2086,7 @@ def extract_system_files(
             if not source.is_file():
                 continue
             categories: set[str] = set()
-            if source.suffix.casefold() == ".sys":
+            if source.suffix.casefold() == ".sys" and not skip_drivers:
                 categories.add("driver")
             if directory == system32 and is_kernel_component_name(source.name):
                 categories.add("kernel")
@@ -2227,6 +2232,7 @@ def build_metadata(
     started_utc: str,
     drivers_only: bool,
     include_driverstore: bool,
+    skip_drivers: bool,
 ) -> dict[str, Any]:
     return {
         "schema_version": COLLECTION_SCHEMA_VERSION,
@@ -2266,8 +2272,11 @@ def build_metadata(
             "started_utc": started_utc,
             "completed_utc": utc_now(),
             "drivers_only": drivers_only,
-            "include_driverstore": include_driverstore,
+            "include_driverstore": include_driverstore and not skip_drivers,
             "include_kernel_components": True,
+            # Without this a collection that deliberately omitted drivers is
+            # indistinguishable from a build that genuinely shipped none.
+            "include_drivers": not skip_drivers,
         },
         "image": {
             "source_name": image_name,
@@ -2481,6 +2490,7 @@ def process_release(
             release_output,
             args.include_driverstore,
             logger,
+            skip_drivers=args.skip_drivers,
         )
     finally:
         try:
@@ -2528,6 +2538,7 @@ def process_release(
         started,
         args.drivers_only,
         args.include_driverstore,
+        args.skip_drivers,
     )
     metadata_path = release_output / "metadata.json"
     write_json_atomic(metadata_path, metadata)
@@ -2734,6 +2745,12 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--cleanup",
         action="store_true",
         help="unmount owned stale images, delete temporary release/tool data, and exit",
+    )
+    parser.add_argument(
+        "--skip-drivers",
+        action="store_true",
+        help="collect only the kernel components and boot loaders, omitting the "
+        ".sys driver corpus and the driver store",
     )
     parser.add_argument(
         "--retry-failed",

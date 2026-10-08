@@ -51,8 +51,17 @@ Useful options:
 | `--include-driverstore` | Also pull from the driver store |
 | `--work-dir` | Where to do the conversion and mounting |
 | `--keep-images` | Keep the converted images rather than deleting them |
+| `--skip-drivers` | Collect only the kernel components and boot loaders |
 | `--retry-failed` | Retry only the releases that failed last run |
 | `--cleanup` | Remove leftover mounts and working files |
+
+`--skip-drivers` is for re-collecting a release you already have in order to pick
+up files an earlier run missed. It drops the `.sys` corpus and the driver store and
+keeps the kernel components and everything under `Windows\Boot`, which is about
+56 MB per build instead of several gigabytes. It does not reduce the download or the
+conversion, only what gets copied out and what you then have to move. The resulting
+`metadata.json` records `include_drivers: false`, so a collection that deliberately
+omitted drivers cannot later be mistaken for a build that shipped none.
 
 `releases.json` is the catalog it works from: one entry per Windows release with its
 build number, edition, language and a rough disk estimate. Edit it to add or remove
