@@ -117,6 +117,11 @@ copy("scripts/doctor.mjs");
 // the database is this script's job.
 copy("scripts/prepare-data.mjs");
 
+// The sitemap is built from the archive, and after indexing new builds the server
+// holds the only copy that includes them. It ships so it can be regenerated there
+// rather than only on whichever machine cut the release.
+copy("scripts/generate-sitemap.mjs");
+
 // The PDB extractor is only needed to index new binaries, not to serve the archive.
 if (existsSync(join(repo_root, "tools/pdb-dump/pdb_dump.exe"))) {
   copy("tools/pdb-dump/pdb_dump.exe");

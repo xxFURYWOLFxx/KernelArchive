@@ -17,6 +17,17 @@ import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 
 const repo_root = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// The archive path and the public origin are configured in .env, and this runs as
+// a plain script rather than through the API, so nothing has loaded that file yet.
+// Without this it would fall back to the defaults and, on a server that keeps its
+// database somewhere else, write a sitemap built from nothing.
+for (const candidate of [join(process.cwd(), ".env"), join(repo_root, ".env")]) {
+  if (!existsSync(candidate)) { continue; }
+  try { process.loadEnvFile(candidate); } catch { /* defaults apply */ }
+  break;
+}
+
 const argv = process.argv.slice(2);
 const named = new Map(argv.filter((value) => value.startsWith("--") && value.includes("="))
   .map((value) => [value.slice(2, value.indexOf("=")), value.slice(value.indexOf("=") + 1)]));
