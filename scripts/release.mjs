@@ -122,6 +122,9 @@ copy("scripts/prepare-data.mjs");
 // rather than only on whichever machine cut the release.
 copy("scripts/generate-sitemap.mjs");
 
+// Drives the whole index-and-finish sequence on the server, so it has to be there.
+copy("scripts/index-new-files.ps1");
+
 // The PDB extractor is only needed to index new binaries, not to serve the archive.
 if (existsSync(join(repo_root, "tools/pdb-dump/pdb_dump.exe"))) {
   copy("tools/pdb-dump/pdb_dump.exe");
