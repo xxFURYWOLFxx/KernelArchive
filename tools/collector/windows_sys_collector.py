@@ -2521,7 +2521,11 @@ def process_release(
                 exc,
             )
 
-    if not driver_records:
+    # An image with no drivers in it is a sign the conversion produced something
+    # wrong, but only when drivers were asked for. Under --skip-drivers an empty
+    # driver list is the expected result, and failing here discarded a release
+    # whose kernel components and boot loaders had already been collected.
+    if not driver_records and not args.skip_drivers:
         raise CollectorError("No .sys files were found in the converted Windows image")
 
     image_record = None
