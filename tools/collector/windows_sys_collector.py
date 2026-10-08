@@ -1597,8 +1597,14 @@ def convert_uup_set(
         Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "cmd.exe"
     )
     with SpaceSafeWorkingDirectory(release_dir, state, logger) as command_dir:
+        # Named by full path rather than relying on cmd.exe searching the working
+        # directory, because NoDefaultCurrentDirectoryInExePath turns that search
+        # off and the converter then fails with "is not recognized as an internal
+        # or external command" after the whole payload has already been fetched.
+        # The working directory is still the converter's own, so its relative
+        # paths and the SUBST shortening both keep working.
         run_streamed(
-            [command_processor, "/d", "/c", "convert-UUP.cmd"],
+            [command_processor, "/d", "/c", str(command_dir / "convert-UUP.cmd")],
             command_dir,
             logger,
         )
