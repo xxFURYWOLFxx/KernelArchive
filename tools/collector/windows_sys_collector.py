@@ -1263,13 +1263,24 @@ def parse_converter_manifest(text: str) -> dict[str, dict[str, str]]:
 
 
 def prepare_converter_archive(
-    session: Any, work_dir: Path, logger: logging.Logger
+    session: Any,
+    work_dir: Path,
+    logger: logging.Logger,
+    converter_url: str = "",
+    converter_sha256: str = "",
 ) -> tuple[Path, dict[str, str], Path]:
     cache_dir = work_dir / "tools"
     manifest = fetch_converter_manifest(session, cache_dir, logger)
     records = parse_converter_manifest(manifest)
     record = records.get("uup-converter-wimlib.7z")
     extractor_record = records.get("7zr.exe")
+    # The published manifest has pointed at a converter build that was no longer on
+    # the server, which fails every release before a single payload is fetched. An
+    # explicit pin keeps the run going without weakening anything: the download is
+    # still rejected unless it hashes to the value given here.
+    if converter_url and converter_sha256:
+        logger.info("Using the pinned UUP converter %s", converter_url)
+        record = {"url": converter_url, "sha256": converter_sha256.lower(), "name": "uup-converter-wimlib.7z"}
     if not record:
         raise DownloadError("UUP converter manifest does not define uup-converter-wimlib.7z")
     if not extractor_record:
@@ -2443,7 +2454,7 @@ def process_release(
     uup_dir = release_dir / "UUPs"
     if image is None:
         archive, converter_record, extractor = prepare_converter_archive(
-            session, work_dir, logger
+            session, work_dir, logger, args.converter_url, args.converter_sha256
         )
         state.update_release(
             release.release_id,
@@ -2473,7 +2484,7 @@ def process_release(
             converter_record = {str(key): str(value) for key, value in saved_converter.items()}
         else:
             _, converter_record, _ = prepare_converter_archive(
-                session, work_dir, logger
+                session, work_dir, logger, args.converter_url, args.converter_sha256
             )
 
     dism.unmount_owned_images(release_dir)
@@ -2745,6 +2756,18 @@ def build_argument_parser() -> argparse.ArgumentParser:
         "--cleanup",
         action="store_true",
         help="unmount owned stale images, delete temporary release/tool data, and exit",
+    )
+    parser.add_argument(
+        "--converter-url",
+        default="",
+        help="pin the UUP converter archive URL, for when the published manifest "
+        "points at a build that is no longer on the server (requires "
+        "--converter-sha256)",
+    )
+    parser.add_argument(
+        "--converter-sha256",
+        default="",
+        help="expected SHA-256 of the pinned converter archive",
     )
     parser.add_argument(
         "--skip-drivers",
