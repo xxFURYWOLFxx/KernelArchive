@@ -11,7 +11,7 @@
 //
 // With no archive database present it still writes the static pages, so a build
 // on a machine without the archive produces a valid sitemap rather than none.
-import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
@@ -29,6 +29,12 @@ const urls_per_file = 45000;
 
 const public_dir = join(repo_root, "apps", "web", "public");
 const sitemap_dir = join(public_dir, "sitemaps");
+// Built aside and swapped in once every shard exists. Writing in place meant an
+// interrupted run kept whichever shards had finished and silently dropped the
+// rest, and the type and function shards are written last, so what survived
+// advertised the module list and none of the pages worth ranking.
+const staging_dir = join(public_dir, "sitemaps.staging");
+const staging_index = join(public_dir, "sitemap.xml.staging");
 
 function workspace_path(value) {
   return isAbsolute(value) ? value : join(repo_root, value);
@@ -48,7 +54,7 @@ function url_entry(path, frequency, priority) {
 function write_sitemap(name, entries) {
   const header = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
   const body = header + entries.join("\n") + "\n</urlset>\n";
-  writeFileSync(join(sitemap_dir, name), body);
+  writeFileSync(join(staging_dir, name), body);
   return { name, count: entries.length, bytes: Buffer.byteLength(body) };
 }
 
@@ -77,10 +83,9 @@ const static_pages = [
   ["/privacy", "yearly", "0.2"],
 ];
 
-mkdirSync(sitemap_dir, { recursive: true });
-for (const entry of readdirSync(sitemap_dir)) {
-  if (entry.endsWith(".xml")) { rmSync(join(sitemap_dir, entry), { force: true }); }
-}
+rmSync(staging_dir, { force: true, recursive: true });
+rmSync(staging_index, { force: true });
+mkdirSync(staging_dir, { recursive: true });
 
 console.log("site        " + site);
 console.log("archive     " + (existsSync(db_path) ? db_path : "not found, writing static pages only"));
@@ -187,7 +192,17 @@ if (existsSync(db_path)) {
 const now = new Date().toISOString();
 const index_header = '<?xml version="1.0" encoding="UTF-8"?>\n<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
 const index_entries = files.map((file) => "<sitemap><loc>" + escape_xml(site + "/sitemaps/" + file.name) + "</loc><lastmod>" + now + "</lastmod></sitemap>");
-writeFileSync(join(public_dir, "sitemap.xml"), index_header + index_entries.join("\n") + "\n</sitemapindex>\n");
+writeFileSync(staging_index, index_header + index_entries.join("\n") + "\n</sitemapindex>\n");
+
+// Every shard is on disk, so publish the set. A directory cannot be renamed over
+// an existing one, hence moving the old one aside first; the index is a file and
+// replaces itself in one step.
+const previous_dir = join(public_dir, "sitemaps.previous");
+rmSync(previous_dir, { force: true, recursive: true });
+if (existsSync(sitemap_dir)) { renameSync(sitemap_dir, previous_dir); }
+renameSync(staging_dir, sitemap_dir);
+renameSync(staging_index, join(public_dir, "sitemap.xml"));
+rmSync(previous_dir, { force: true, recursive: true });
 
 const total_urls = files.reduce((sum, file) => sum + file.count, 0);
 const total_bytes = files.reduce((sum, file) => sum + file.bytes, 0);

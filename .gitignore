@@ -50,3 +50,7 @@ apps/web/public/sitemaps/
 # Python bytecode from running the collector.
 __pycache__/
 *.pyc
+
+# Staging directory the sitemap generator swaps in from.
+apps/web/public/sitemaps.staging/
+apps/web/public/sitemap.xml.staging
