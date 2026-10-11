@@ -94,12 +94,16 @@ const example_error = `{
 
 function CodeBlock({ code, label }: { code: string; label?: string }) {
   return (
-    <div className="relative">
+    <div>
       {label && <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">{label}</p>}
-      <div className="absolute right-2 top-0 z-10">
-        <CopyButton label="Copy" value={code} />
+      {/* Positioned against the code block rather than the whole group: anchored to
+          the group, the label took the top edge and pushed the button up beside it. */}
+      <div className="relative">
+        <div className="absolute right-2 top-2 z-10">
+          <CopyButton label="Copy" value={code} />
+        </div>
+        <pre className="ka-scroll min-w-0 max-w-full overflow-auto rounded-md border border-white/10 bg-black/45 p-3 pr-24 font-mono text-xs leading-relaxed text-zinc-300">{code}</pre>
       </div>
-      <pre className="ka-scroll min-w-0 max-w-full overflow-auto rounded-md border border-white/10 bg-black/45 p-3 font-mono text-xs leading-relaxed text-zinc-300">{code}</pre>
     </div>
   );
 }
