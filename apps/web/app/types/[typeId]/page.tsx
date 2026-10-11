@@ -63,6 +63,7 @@ export default async function TypeDetailPage({ params }: { params: Promise<{ typ
           description: `Field offsets and reconstructed C definition for ${type.name}, ${type.fields.length} members, 0x${type.size.toString(16)} bytes.`,
           url: `${site.url}/types/${type.id}`,
           isAccessibleForFree: true,
+          license: `${site.url}/terms`,
           isPartOf: { "@id": `${site.url}/#dataset` },
           ...(where ? { version: where } : {}),
         }}

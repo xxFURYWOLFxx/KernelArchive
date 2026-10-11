@@ -42,6 +42,10 @@ export function SiteStructuredData() {
             description: "Windows kernel symbols, type layouts, field offsets and byte patterns, derived from Microsoft's public debug symbols and pinned to exact Windows builds.",
             url: site.url,
             isAccessibleForFree: true,
+            // Points at the terms rather than naming a licence. The archive is
+            // derived from Microsoft's materials and is not ours to license, so
+            // stating one here would contradict the page it links to.
+            license: `${site.url}/terms`,
             keywords: ["Windows kernel", "PDB symbols", "struct offsets", "reverse engineering", "ntoskrnl"],
             creator: { "@type": "Person", name: site.author },
             distribution: {
